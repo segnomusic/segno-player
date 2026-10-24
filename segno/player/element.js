@@ -5,6 +5,7 @@ import { createTimeline } from '../core/index.js';
 import { CanvasView } from './canvas-view.js';
 import { createControls } from './controls.js';
 import { checkSyncMap, loadSync } from './load.js';
+import { languageOf, messages } from './localization.js';
 import { automaticMode, scoreMode } from './mode.js';
 import { styles } from './styles.js';
 /** Events of the audio element that the player re-dispatches as its own */
@@ -56,10 +57,15 @@ export class SegnoPlayer extends Base {
         'note-lead',
         'follow',
         'mode',
+        'lang',
     ];
     #audio = document.createElement('audio');
     #pagesEl = document.createElement('div');
     #live = document.createElement('div');
+    #controls;
+    #language = 'en';
+    #languageObserver = null;
+    #announcement = null;
     #markers;
     #cursor = document.createElement('div');
     #canvasView = new CanvasView(() => this.#refreshMode(), (error) => {
@@ -102,7 +108,8 @@ export class SegnoPlayer extends Base {
         this.#pagesEl.setAttribute('part', 'pages');
         this.#pagesEl.tabIndex = 0;
         this.#pagesEl.setAttribute('role', 'group');
-        this.#pagesEl.setAttribute('aria-label', 'Score');
+        this.#pagesEl.lang = 'en';
+        this.#pagesEl.setAttribute('aria-label', messages.en.score);
         this.#pagesEl.setAttribute('aria-keyshortcuts', 'Space K ArrowLeft ArrowRight Home');
         this.#pagesEl.addEventListener('click', (e) => this.#onClick(e));
         this.#pagesEl.addEventListener('keydown', (e) => this.#onKey(e));
@@ -122,9 +129,11 @@ export class SegnoPlayer extends Base {
         controlsArea.setAttribute('part', 'controls-area');
         const slot = document.createElement('slot');
         slot.name = 'controls';
-        slot.append(createControls(this));
+        this.#controls = createControls(this);
+        slot.append(this.#controls.root);
         controlsArea.append(slot);
         this.#live.className = 'live';
+        this.#live.lang = 'en';
         this.#live.setAttribute('aria-live', 'polite');
         root.append(this.#pagesEl, controlsArea, this.#live);
         const audio = this.#audio;
@@ -160,6 +169,7 @@ export class SegnoPlayer extends Base {
             audio.addEventListener(type, () => this.dispatchEvent(new Event(type)));
     }
     connectedCallback() {
+        this.#observeLanguage();
         this.#apply();
         this.#resizeObserver ??= new ResizeObserver(() => this.#updateSize());
         this.#resizeObserver.observe(this);
@@ -170,6 +180,7 @@ export class SegnoPlayer extends Base {
         this.#audio.pause();
         this.#stopLoop();
         this.#resizeObserver?.disconnect();
+        this.#languageObserver?.disconnect();
         window.removeEventListener('resize', this.#onWindowResize);
         this.#canvasView.cancelLoading();
         if (!this.#loadSettled) {
@@ -184,10 +195,20 @@ export class SegnoPlayer extends Base {
         this.#refreshMode();
     }
     /** Moving the element with `moveBefore()` keeps it playing */
-    connectedMoveCallback() { }
+    connectedMoveCallback() {
+        this.#observeLanguage();
+    }
+    adoptedCallback() {
+        if (this.isConnected)
+            this.#observeLanguage();
+    }
     attributeChangedCallback(name, previous, value) {
         if (previous === value)
             return;
+        if (name === 'lang') {
+            this.#updateLanguage();
+            return;
+        }
         if (name === 'follow') {
             if ((previous === null) !== (value === null))
                 this.dispatchEvent(new Event('followchange'));
@@ -205,6 +226,40 @@ export class SegnoPlayer extends Base {
             this.#update();
         else
             this.#apply();
+    }
+    // @decision(DL-028)
+    #observeLanguage() {
+        this.#languageObserver ??= new MutationObserver((records) => {
+            if (records.some((record) => record.attributeName === 'lang' &&
+                (record.attributeNamespace === null ||
+                    record.attributeNamespace === 'http://www.w3.org/XML/1998/namespace'))) {
+                this.#updateLanguage();
+            }
+        });
+        this.#languageObserver.disconnect();
+        let ancestor = this;
+        while (true) {
+            const root = ancestor.getRootNode();
+            const parent = ancestor.parentElement ?? ('host' in root ? root.host : null);
+            if (!parent)
+                break;
+            this.#languageObserver.observe(parent, { attributes: true });
+            ancestor = parent;
+        }
+        this.#updateLanguage();
+    }
+    // @decision(DL-029)
+    #updateLanguage() {
+        const language = languageOf(this);
+        if (language === this.#language)
+            return;
+        this.#language = language;
+        this.#pagesEl.lang = this.#live.lang = language;
+        this.#pagesEl.setAttribute('aria-label', messages[language].score);
+        this.#controls.setLanguage(language);
+        this.#updateAlt();
+        if (this.#announcement)
+            this.#live.textContent = messages[language].barPosition(...this.#announcement);
     }
     // The media element API
     get currentTime() {
@@ -336,11 +391,12 @@ export class SegnoPlayer extends Base {
         this.#canvasView.setScore(this.#pageUrls(), []);
     }
     #updateAlt() {
-        const alt = this.getAttribute('alt');
-        this.#canvasView.setLabel(alt ? `${alt}, zoomed score` : 'Zoomed score');
+        const alt = this.getAttribute('alt') ?? undefined;
+        const text = messages[this.#language];
+        this.#canvasView.setLabel(text.zoomedScore(alt));
         const count = this.#pages.length;
         this.#pages.forEach(({ image }, i) => {
-            image.alt = alt ? `${alt}, page ${i + 1} of ${count}` : `Page ${i + 1} of ${count}`;
+            image.alt = text.pageDescription(i + 1, count, alt);
         });
     }
     #setPageSizes(sizes) {
@@ -669,7 +725,8 @@ export class SegnoPlayer extends Base {
         const timeline = this.#markersOn();
         if (this.#bar < 0 || !timeline)
             return;
-        this.#live.textContent = `Bar ${this.#bar + 1} of ${timeline.bars.length}`;
+        this.#announcement = [this.#bar + 1, timeline.bars.length];
+        this.#live.textContent = messages[this.#language].barPosition(...this.#announcement);
     }
 }
 //# sourceMappingURL=element.js.map

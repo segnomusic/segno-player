@@ -78,6 +78,7 @@
         font-family: var(--font-mono);
         font-size: 0.88em;
       }
+      /* @decision(DL-030) */
       .hero-header {
         padding: 0 0 1.5rem;
         margin-bottom: 1.5rem;
@@ -87,16 +88,6 @@
         align-items: flex-end;
         justify-content: space-between;
         gap: 1.5rem 2.5rem;
-      }
-      /* Engraved final-barline top rule (thick + thin) */
-      .hero-header::before {
-        content: "";
-        display: block;
-        width: 100%;
-        height: 8px;
-        border-top: 4px solid var(--fg);
-        border-bottom: 1.5px solid var(--fg);
-        margin-bottom: 0.75rem;
       }
       .eyebrow {
         font: 600 0.75rem/1.2 var(--font-mono);
@@ -315,7 +306,7 @@
 
       <footer>
         <span>Source and documentation: <a href="https://github.com/segnomusic/segno-player">github.com/segnomusic/segno-player</a></span>
-        <span>Built from <code>096d2a9</code></span>
+        <span>Built from <code>f716dc6</code></span>
       </footer>
     </main>
     <script type="module">

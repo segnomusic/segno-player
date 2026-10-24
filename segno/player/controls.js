@@ -2,6 +2,7 @@
 // Copyright (C) 2026 The Segno contributors
 // https://github.com/segnomusic/segno-player
 import { formatTime } from './format.js';
+import { messages } from './localization.js';
 const svgNS = 'http://www.w3.org/2000/svg';
 const icons = {
     play: 'M4 2.5v11l9.5-5.5z',
@@ -12,12 +13,6 @@ const icons = {
 const TEMPO_MIN = 50;
 const TEMPO_MAX = 150;
 const TEMPO_STEP = 10;
-const MODE_NAMES = {
-    auto: 'Auto',
-    full: 'Full score',
-    'two-system': 'Zoom',
-    reflow: 'Reflow',
-};
 // An element with a class name, a part and some properties
 function element(tag, name, part, props = {}) {
     const el = Object.assign(document.createElement(tag), props);
@@ -27,12 +22,12 @@ function element(tag, name, part, props = {}) {
 }
 /**
  * The built-in controls: playback and seeking, with tempo and follow settings that collapse on narrow players.
- * @decision(DL-016) @decision(DL-024)
+ * @decision(DL-016) @decision(DL-024) @decision(DL-029)
  */
 export function createControls(player) {
+    let text = messages.en;
     const bar = element('div', 'controls', 'controls');
     bar.setAttribute('role', 'group');
-    bar.setAttribute('aria-label', 'Player');
     const play = element('button', 'play', 'play-button', { type: 'button' });
     const addIcon = (button, name) => {
         const icon = document.createElementNS(svgNS, 'svg');
@@ -52,7 +47,6 @@ export function createControls(player) {
             player.pause();
     });
     const restart = element('button', 'restart control-button', 'restart-button', { type: 'button' });
-    restart.setAttribute('aria-label', 'Back to beginning');
     addIcon(restart, 'restart');
     restart.addEventListener('click', () => {
         player.pause();
@@ -63,14 +57,12 @@ export function createControls(player) {
     const time = element('span', 'time elapsed', 'time current-time');
     const totalTime = element('span', 'time duration', 'time duration');
     const seek = element('input', 'seek', 'seek', { type: 'range', min: '0', max: '0', step: 'any' });
-    seek.setAttribute('aria-label', 'Position');
     seek.addEventListener('input', () => {
         player.currentTime = Number(seek.value);
     });
     progress.append(time, seek, totalTime);
     const settings = element('div', 'settings', 'settings', { id: 'playback-settings' });
     const settingsButton = element('button', 'settings-toggle control-button', 'settings-button', { type: 'button' });
-    settingsButton.setAttribute('aria-label', 'Playback settings');
     settingsButton.setAttribute('aria-controls', settings.id);
     settingsButton.setAttribute('aria-expanded', 'false');
     addIcon(settingsButton, 'settings');
@@ -88,11 +80,9 @@ export function createControls(player) {
     });
     const modeLabel = element('label', 'mode', 'mode');
     const mode = element('select', '', 'mode-input');
-    mode.setAttribute('aria-label', 'Score layout');
     for (const value of ['auto', 'full', 'two-system', 'reflow']) {
         const option = document.createElement('option');
         option.value = value;
-        option.textContent = MODE_NAMES[value];
         mode.append(option);
     }
     mode.addEventListener('change', () => {
@@ -102,13 +92,9 @@ export function createControls(player) {
     settings.append(modeLabel);
     const tempo = element('div', 'tempo', 'tempo');
     tempo.setAttribute('role', 'group');
-    tempo.setAttribute('aria-label', 'Tempo');
     const tempoLabel = document.createElement('span');
-    tempoLabel.textContent = 'Tempo';
     const slower = element('button', 'control-button', 'tempo-decrease', { type: 'button', textContent: '−' });
-    slower.setAttribute('aria-label', 'Slower');
     const faster = element('button', 'control-button', 'tempo-increase', { type: 'button', textContent: '+' });
-    faster.setAttribute('aria-label', 'Faster');
     const rate = element('span', 'tempo-value', 'tempo-value');
     rate.setAttribute('aria-live', 'polite');
     const stepTempo = (step) => {
@@ -123,12 +109,13 @@ export function createControls(player) {
     follow.addEventListener('change', () => {
         player.follow = follow.checked;
     });
-    followLabel.append(follow, 'Follow score');
+    const followText = document.createTextNode('');
+    followLabel.append(follow, followText);
     settings.append(tempo, followLabel);
     const showState = () => {
         const paused = player.paused;
         path.setAttribute('d', paused ? icons.play : icons.pause);
-        play.setAttribute('aria-label', paused ? 'Play' : 'Pause');
+        play.setAttribute('aria-label', paused ? text.play : text.pause);
     };
     const showTime = () => {
         const duration = Number.isFinite(player.duration) ? player.duration : 0;
@@ -138,12 +125,12 @@ export function createControls(player) {
         const total = formatTime(duration);
         time.textContent = now;
         totalTime.textContent = total;
-        seek.setAttribute('aria-valuetext', `${now} of ${total}`);
+        seek.setAttribute('aria-valuetext', text.seekPosition(now, total));
         play.disabled = restart.disabled = seek.disabled = duration <= 0;
     };
     const showRate = () => {
         const percent = Math.round(player.playbackRate * 100);
-        rate.textContent = `${percent}%`;
+        rate.textContent = text.tempoPercent(percent);
         slower.disabled = percent <= TEMPO_MIN;
         faster.disabled = percent >= TEMPO_MAX;
     };
@@ -160,12 +147,29 @@ export function createControls(player) {
     player.addEventListener('ratechange', showRate);
     player.addEventListener('followchange', showFollow);
     player.addEventListener('modechange', showMode);
-    showState();
-    showTime();
-    showRate();
+    const setLanguage = (language) => {
+        text = messages[language];
+        bar.lang = language;
+        bar.setAttribute('aria-label', text.player);
+        restart.setAttribute('aria-label', text.restart);
+        seek.setAttribute('aria-label', text.position);
+        settingsButton.setAttribute('aria-label', text.playbackSettings);
+        mode.setAttribute('aria-label', text.scoreLayout);
+        for (const option of mode.options)
+            option.textContent = text.modes[option.value];
+        tempo.setAttribute('aria-label', text.tempo);
+        tempoLabel.textContent = text.tempo;
+        slower.setAttribute('aria-label', text.slower);
+        faster.setAttribute('aria-label', text.faster);
+        followText.textContent = text.followScore;
+        showState();
+        showTime();
+        showRate();
+    };
+    setLanguage('en');
     showFollow();
     showMode();
     bar.append(play, restart, progress, settingsButton, settings);
-    return bar;
+    return { root: bar, setLanguage };
 }
 //# sourceMappingURL=controls.js.map
