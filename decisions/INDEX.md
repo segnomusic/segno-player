@@ -2,6 +2,10 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-030 | Simplify the demo header framing | accepted | demo, design |
+| DL-029 | Localize controls and accessible descriptions in place during playback | accepted | player-localization, segno-player, accessibility |
+| DL-028 | Resolve player language from standard HTML lang inheritance | accepted | player-localization, segno-player |
+| DL-027 | Typed built-in English and Swedish player dictionaries | accepted | player-localization, segno-player |
 | DL-026 | Validate release tarballs and bootstrap npm locally before OIDC publishing | accepted | release, ci, packaging |
 | DL-025 | Segno Music organization, scoped player package, and migrated project URLs | accepted | packaging, demo, ci |
 | DL-024 | Public score mode API with container-based auto selection | accepted | canvas-viewport, segno-player |

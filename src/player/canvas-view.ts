@@ -4,6 +4,7 @@
 
 import { type PageSize, readViewBox, type SyncMap } from '../core/index.js';
 import { CanvasLayout, type CanvasMode, type Crop, type Rect, type ReflowScene, type Tile } from './canvas-layout.js';
+import { messages } from './localization.js';
 
 export interface CanvasNote {
   page: number;
@@ -38,7 +39,7 @@ const MAX_DPR = 3;
 
 const sameStrings = (a: string[], b: string[]): boolean => a.length === b.length && a.every((v, i) => v === b[i]);
 
-// @decision(DL-023)
+// @decision(DL-023) @decision(DL-029)
 export class CanvasView {
   readonly root = document.createElement('div');
   readonly overlay = document.createElement('div');
@@ -80,7 +81,7 @@ export class CanvasView {
     this.root.hidden = true;
     this.#canvas.setAttribute('part', 'canvas-score');
     this.#canvas.setAttribute('role', 'img');
-    this.#canvas.setAttribute('aria-label', 'Zoomed score');
+    this.#canvas.setAttribute('aria-label', messages.en.zoomedScore());
     this.overlay.className = 'overlay';
     this.root.append(this.#canvas, this.overlay);
   }
