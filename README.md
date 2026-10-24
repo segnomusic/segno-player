@@ -72,6 +72,7 @@ The player takes the width it is given: in a layout that sizes elements to their
 | `mode`                                   | `full` (default), `two-system`, `reflow`, or `auto`                                             |
 | `follow`                                 | Scroll the playing system into view when it leaves the screen in full-score mode                |
 | `alt`                                    | The score's title, for the pages' alt text                                                      |
+| `lang`                                   | Player language (`en` or `sv`); inherited from the surrounding page when omitted                |
 | `bar-lead`, `note-lead`                  | Timing offsets in ms for the bar marker and note cursor (default 15 and −20; positive is early) |
 | `note-cursor="off"`, `bar-change="jump"` | No note cursor; switch bars at once instead of crossfading                                      |
 
@@ -86,6 +87,24 @@ Clicking a bar plays from it. On the focused score, Space or K plays and pauses,
 If the files don't fit together, the player still shows the pages and plays the audio, without markers, and says why in the console.
 
 Theme it with `--segno-*` custom properties, `::part()` and container queries: see [docs/theming.md](docs/theming.md).
+
+### Language
+
+<!-- @decision(DL-028) @decision(DL-029) -->
+
+The built-in controls and screen-reader descriptions support **English (`en`)** and **Swedish (`sv`)**. Use standard HTML `lang` on the player or let it inherit from its surroundings:
+
+```html
+<html lang="sv">
+  <!-- Players on this page use Swedish unless they override lang. -->
+  <segno-player pages="song-1.svg" audio="song.mp3" positions="song.mpos" controls></segno-player>
+  <segno-player lang="en" pages="song-1.svg" audio="song.mp3" positions="song.mpos" controls></segno-player>
+</html>
+```
+
+Regional tags such as `sv-SE` use their base language. Unsupported, unspecified, or explicitly empty languages fall back to English. The nearest `lang` wins; `lang=""` stops inheritance rather than selecting a Swedish ancestor. Browser language preferences are not used.
+
+Changing `player.lang`, its `lang` attribute, or an inherited ancestor language updates the existing controls and descriptions without restarting playback or losing focus, settings, or position. Score titles supplied through `alt` and any custom slotted controls are left unchanged. Developer-facing errors and console warnings remain in English.
 
 ## Using the core
 

@@ -602,6 +602,300 @@ describe('controls', () => {
   });
 });
 
+describe('localization', () => {
+  let originalLang: string | null;
+  beforeEach(() => {
+    originalLang = document.documentElement.getAttribute('lang');
+  });
+  afterEach(() => {
+    if (originalLang === null) document.documentElement.removeAttribute('lang');
+    else document.documentElement.setAttribute('lang', originalLang);
+  });
+
+  test('translates Swedish controls, accessible names, pages and bar announcements', async () => {
+    const player = await ready({ controls: true, lang: 'sv-SE', alt: 'Hosianna' });
+    const labels: Record<string, string> = {
+      '.controls': 'Spelare',
+      '.pages': 'Notbild',
+      '.play': 'Spela',
+      '.restart': 'Till början',
+      '.seek': 'Position',
+      '.settings-toggle': 'Uppspelningsinställningar',
+      '.mode select': 'Notlayout',
+      '.tempo': 'Tempo',
+      '[part="tempo-decrease"]': 'Långsammare',
+      '[part="tempo-increase"]': 'Snabbare',
+    };
+    for (const [selector, label] of Object.entries(labels)) {
+      expect(query(player, selector).getAttribute('aria-label')).toBe(label);
+    }
+    expect(query(player, '.follow').textContent).toBe('Följ noterna');
+    expect(query(player, '.tempo-value').textContent).toBe('100\u00a0%');
+    const options = [...query<HTMLSelectElement>(player, '.mode select').options];
+    expect(options.map((option) => option.textContent)).toEqual(['Auto', 'Hela bladet', 'Zoom', 'Anpassad']);
+    expect(options.map((option) => option.value)).toEqual(['auto', 'full', 'two-system', 'reflow']);
+    expect(query<HTMLImageElement>(player, 'img').alt).toBe('Hosianna, sida 1 av 1');
+    expect(query(player, 'canvas').getAttribute('aria-label')).toBe('Hosianna, inzoomad notbild');
+    expect(query(player, '.controls').lang).toBe('sv');
+    expect(query(player, '.pages').lang).toBe('sv');
+    expect(query(player, '.live').lang).toBe('sv');
+    expect(player.lang).toBe('sv-SE');
+    await seek(player, 12);
+    expect(query(player, '.seek').getAttribute('aria-valuetext')).toBe('0:12 av 0:30');
+    expect(query(player, '.live').textContent).toMatch(/^Takt \d+ av 13$/);
+    await player.play();
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Pausa');
+    player.pause();
+    player.removeAttribute('alt');
+    expect(query<HTMLImageElement>(player, 'img').alt).toBe('Sida 1 av 1');
+    expect(query(player, 'canvas').getAttribute('aria-label')).toBe('Inzoomad notbild');
+  });
+
+  test('inherits document and nearest ancestor lang, and follows changes to either', async () => {
+    document.documentElement.lang = 'sv';
+    const player = mount({ controls: true });
+    expect(player.hasAttribute('lang')).toBe(false);
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Spela');
+    document.documentElement.lang = 'en';
+    await vi.waitFor(() => expect(query(player, '.play').getAttribute('aria-label')).toBe('Play'));
+    const wrapper = document.createElement('div');
+    wrapper.lang = 'sv-FI';
+    document.body.append(wrapper);
+    wrapper.append(player);
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Spela');
+    document.documentElement.lang = 'sv';
+    wrapper.lang = 'en';
+    await vi.waitFor(() => expect(query(player, '.play').getAttribute('aria-label')).toBe('Play'));
+    wrapper.removeAttribute('lang');
+    await vi.waitFor(() => expect(query(player, '.play').getAttribute('aria-label')).toBe('Spela'));
+  });
+
+  test('explicit languages override inheritance and English fallback is announced in English', async () => {
+    document.documentElement.lang = 'sv';
+    const player = mount({ controls: true, lang: 'fr' });
+    const other = mount({ controls: true });
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Play');
+    expect(player.lang).toBe('fr');
+    expect(query(player, '.controls').lang).toBe('en');
+    expect(query(player, '.pages').lang).toBe('en');
+    expect(query(other, '.play').getAttribute('aria-label')).toBe('Spela');
+    player.lang = '';
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Play');
+    player.removeAttribute('lang');
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Spela');
+    player.lang = 'en-US';
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Play');
+    document.documentElement.lang = 'en';
+    await vi.waitFor(() => expect(query(other, '.play').getAttribute('aria-label')).toBe('Play'));
+    expect(player.lang).toBe('en-US');
+  });
+
+  test('updates inherited namespaced xml:lang and ignores unrelated ancestor attributes', async () => {
+    const xml = 'http://www.w3.org/XML/1998/namespace';
+    document.documentElement.lang = 'en';
+    const wrapper = document.createElement('div');
+    document.body.append(wrapper);
+    const player = document.createElement('segno-player');
+    wrapper.append(player);
+    const resolve = vi.spyOn(player, 'matches');
+    wrapper.className = 'changed';
+    wrapper.style.width = '400px';
+    wrapper.setAttributeNS('urn:unrelated', 'other:lang', 'sv');
+    await Promise.resolve();
+    expect(resolve).not.toHaveBeenCalled();
+    wrapper.setAttributeNS(xml, 'xml:lang', 'sv');
+    await vi.waitFor(() => expect(query(player, '.play').getAttribute('aria-label')).toBe('Spela'));
+    wrapper.setAttributeNS(xml, 'xml:lang', 'en');
+    await vi.waitFor(() => expect(query(player, '.play').getAttribute('aria-label')).toBe('Play'));
+    wrapper.setAttributeNS(xml, 'xml:lang', 'sv');
+    await vi.waitFor(() => expect(query(player, '.play').getAttribute('aria-label')).toBe('Spela'));
+    wrapper.removeAttributeNS(xml, 'lang');
+    await vi.waitFor(() => expect(query(player, '.play').getAttribute('aria-label')).toBe('Play'));
+  });
+
+  test('preserves playback, DOM, focus and open settings when changing language', async () => {
+    const player = await ready({ controls: true, follow: true, mode: 'two-system', style: 'width: 400px' });
+    await vi.waitFor(() => expect(player.resolvedMode).toBe('two-system'));
+    player.playbackRate = 0.8;
+    await seek(player, 5);
+    const announcement = query(player, '.live').textContent;
+    const controls = query(player, '.controls');
+    const image = query(player, 'img');
+    const canvas = query(player, 'canvas');
+    const selector = query<HTMLSelectElement>(player, '.mode select');
+    const options = [...selector.options];
+    const settingsButton = query<HTMLButtonElement>(player, '.settings-toggle');
+    settingsButton.click();
+    const slower = query<HTMLButtonElement>(player, '[part="tempo-decrease"]');
+    slower.focus();
+    await player.play();
+    const time = player.currentTime;
+    const sync = player.sync;
+    const fetches = vi.spyOn(window, 'fetch');
+    const load = vi.spyOn(HTMLMediaElement.prototype, 'load');
+    const draw = vi.spyOn(CanvasRenderingContext2D.prototype, 'drawImage');
+    player.lang = 'sv';
+    expect(query(player, '.controls')).toBe(controls);
+    expect(query(player, 'img')).toBe(image);
+    expect(query(player, 'canvas')).toBe(canvas);
+    expect([...selector.options]).toEqual(options);
+    expect(shadow(player).activeElement).toBe(slower);
+    expect(settingsButton.getAttribute('aria-expanded')).toBe('true');
+    expect(player.mode).toBe('two-system');
+    expect(selector.value).toBe('two-system');
+    expect(player.resolvedMode).toBe('two-system');
+    expect(player.follow).toBe(true);
+    expect(query<HTMLInputElement>(player, '.follow input').checked).toBe(true);
+    expect(player.playbackRate).toBe(0.8);
+    expect(player.paused).toBe(false);
+    expect(player.currentTime).toBeGreaterThanOrEqual(time);
+    expect(player.sync).toBe(sync);
+    expect(fetches).not.toHaveBeenCalled();
+    expect(load).not.toHaveBeenCalled();
+    expect(draw).not.toHaveBeenCalled();
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Pausa');
+    expect(query(player, '.tempo-value').textContent).toBe('80\u00a0%');
+    expect(query(player, '.live').textContent).toBe(announcement?.replace('Bar', 'Takt').replace('of', 'av'));
+    player.lang = 'en';
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Pause');
+    expect(query(player, '.live').textContent).toBe(announcement);
+    player.pause();
+  });
+
+  test('a language switch does not start bar announcements during playback', async () => {
+    const player = await ready({ controls: true });
+    expect(query(player, '.live').textContent).toBe('');
+    await player.play();
+    player.lang = 'sv';
+    expect(query(player, '.live').textContent).toBe('');
+    const paused = next(player, 'pause');
+    player.pause();
+    await paused;
+    expect(query(player, '.live').textContent).toMatch(/^Takt \d+ av 13$/);
+  });
+
+  test('translates the last announcement without announcing a new playback position', async () => {
+    const player = await ready();
+    await seek(player, 1);
+    const announcement = query(player, '.live').textContent;
+    await player.play();
+    await seek(player, 12);
+    expect(query(player, '.live').textContent).toBe(announcement);
+    player.lang = 'sv';
+    expect(query(player, '.live').textContent).toBe(announcement?.replace('Bar', 'Takt').replace('of', 'av'));
+    player.pause();
+  });
+
+  test('observes inherited changes across a containing shadow root', async () => {
+    document.documentElement.lang = 'en';
+    const host = document.createElement('div');
+    host.lang = 'sv';
+    document.body.append(host);
+    const root = host.attachShadow({ mode: 'open' });
+    const player = document.createElement('segno-player');
+    root.append(player);
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Spela');
+    host.lang = 'en';
+    await vi.waitFor(() => expect(query(player, '.play').getAttribute('aria-label')).toBe('Play'));
+    host.removeAttribute('lang');
+    document.documentElement.lang = 'sv';
+    await vi.waitFor(() => expect(query(player, '.play').getAttribute('aria-label')).toBe('Spela'));
+  });
+
+  test('rebinds inherited language on state-preserving moves without pausing playback', async () => {
+    const swedish = document.createElement('div');
+    const english = document.createElement('div');
+    swedish.lang = 'sv';
+    english.lang = 'en';
+    document.body.append(swedish, english);
+    const player = await ready({ controls: true });
+    await player.play();
+    swedish.moveBefore(player, null);
+    expect(player.paused).toBe(false);
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Pausa');
+    english.moveBefore(player, null);
+    expect(player.paused).toBe(false);
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Pause');
+    english.lang = 'sv';
+    await vi.waitFor(() => expect(query(player, '.play').getAttribute('aria-label')).toBe('Pausa'));
+    player.pause();
+  });
+
+  test('disconnects inherited-language observation and resolves again on reconnect', async () => {
+    const wrapper = document.createElement('div');
+    wrapper.lang = 'sv';
+    document.body.append(wrapper);
+    const player = document.createElement('segno-player');
+    wrapper.append(player);
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Spela');
+    player.remove();
+    wrapper.lang = 'en';
+    await Promise.resolve();
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Spela');
+    wrapper.append(player);
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Play');
+    player.remove();
+    player.lang = 'sv';
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Spela');
+  });
+
+  test('resolves again after adoption into another document', () => {
+    const player = mount();
+    const other = document.implementation.createHTMLDocument('Swedish page');
+    other.documentElement.lang = 'sv';
+    other.body.append(player);
+    expect(player.ownerDocument).toBe(other);
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Spela');
+    document.body.append(player);
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Play');
+  });
+
+  test('observes a shadow host in another window after adoption', async () => {
+    const frame = document.createElement('iframe');
+    document.body.append(frame);
+    const other = frame.contentDocument;
+    if (!other) throw new Error('No iframe document');
+    const host = other.createElement('div');
+    host.lang = 'sv';
+    other.body.append(host);
+    const root = host.attachShadow({ mode: 'open' });
+    const player = mount();
+    root.append(player);
+    expect(query(player, '.play').getAttribute('aria-label')).toBe('Spela');
+    host.lang = 'en';
+    await vi.waitFor(() => expect(query(player, '.play').getAttribute('aria-label')).toBe('Play'));
+    document.body.append(player);
+  });
+
+  test('leaves authored titles and slotted custom controls untouched', () => {
+    const player = mount({ controls: true, pages: 'a.svg', alt: '<Hosianna>' });
+    const own = document.createElement('button');
+    own.slot = 'controls';
+    own.textContent = 'My own play button';
+    own.lang = 'en';
+    player.append(own);
+    player.lang = 'sv';
+    expect(query<HTMLImageElement>(player, 'img').alt).toBe('<Hosianna>, sida 1 av 1');
+    expect(own.textContent).toBe('My own play button');
+    expect(own.lang).toBe('en');
+    expect(query<HTMLSlotElement>(player, 'slot[name="controls"]').assignedElements()).toEqual([own]);
+  });
+
+  test('Swedish settings fit narrow players without overflowing', async () => {
+    await browser.viewport(1000, 700);
+    const player = mount({ controls: true, lang: 'sv' });
+    const controls = query(player, '.controls');
+    const settings = query<HTMLButtonElement>(player, '.settings-toggle');
+    for (const width of [280, 320, 390, 600]) {
+      player.style.width = `${width}px`;
+      expect(controls.scrollWidth).toBeLessThanOrEqual(controls.clientWidth);
+      settings.click();
+      expect(controls.scrollWidth).toBeLessThanOrEqual(controls.clientWidth);
+      settings.click();
+    }
+  });
+});
+
 describe('theming', () => {
   test('custom properties set on the page reach the markers', async () => {
     const player = await ready();
