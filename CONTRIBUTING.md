@@ -61,6 +61,8 @@ Fixtures and demo scores must be in the public domain or under an open licence. 
 
 Every pull request that changes the published package adds a changeset: run `npx changeset` and describe the change for users. Merging to `main` opens a "Version Packages" pull request; merging that publishes to npm.
 
+Work on branches and submit pull requests rather than pushing directly to `main`. The release PR updates the version, changelog and npm lockfile, and validates the release candidate before opening or updating the PR. CI also installs the packed tarball into an isolated consumer and checks its exports with `npm run smoke:package`.
+
 ## Licence
 
 By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE), the same as the rest of the project.
