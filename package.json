@@ -55,9 +55,12 @@
     "size": "node scripts/check-size.mjs",
     "check": "npm run typecheck && npm run lint && npm run license-headers && npm run coverage && npm run build && npm run size",
     "changeset": "changeset",
+    "version-packages": "changeset version && npm install --package-lock-only --ignore-scripts && npm run check && npm run smoke:package",
     "release": "npm run build && changeset publish",
+    "prepack": "npm run build",
     "license-headers": "node scripts/check-spdx.mjs",
     "smoke": "node --input-type=module -e \"const core = await import('@segnomusic/player/core'); await import('@segnomusic/player/player'); if (typeof core.buildSync !== 'function') process.exit(1);\"",
+    "smoke:package": "node scripts/check-package.mjs",
     "build:demo": "npm run build && node scripts/build-demo.mjs",
     "demo": "npm run build:demo && vite site"
   },

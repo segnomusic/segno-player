@@ -110,4 +110,16 @@ describe('CanvasView', () => {
     expect(view.hitTest(0, 0)).toBeNull();
     view.cancelLoading();
   });
+
+  test('reports rasterization failures after the score assets load', async () => {
+    const { view, errors } = makeView();
+    view.resize(400);
+    // The view already has its display context; fail the offscreen raster context instead.
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    view.setScore([blankPage()], bars);
+    await vi.waitFor(() => expect(view.failed).toBe(true));
+    expect(errors).toEqual([new Error('Canvas 2D is not available')]);
+    expect(view.ready).toBe(false);
+    view.cancelLoading();
+  });
 });

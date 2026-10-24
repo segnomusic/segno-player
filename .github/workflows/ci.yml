@@ -45,3 +45,5 @@ jobs:
         run: npm run size
       - name: Import the built package
         run: npm run smoke
+      - name: Test the package as installed by consumers
+        run: npm run smoke:package

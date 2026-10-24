@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-026 | Validate release tarballs and bootstrap npm locally before OIDC publishing | accepted | release, ci, packaging |
 | DL-025 | Segno Music organization, scoped player package, and migrated project URLs | accepted | packaging, demo, ci |
 | DL-024 | Public score mode API with container-based auto selection | accepted | canvas-viewport, segno-player |
 | DL-023 | Canvas rendering separates pure layout, lazy rasters, and playback overlays | accepted | canvas-viewport, segno-player |
