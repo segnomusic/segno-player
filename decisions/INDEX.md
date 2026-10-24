@@ -2,6 +2,9 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-024 | Public score mode API with container-based auto selection | accepted | canvas-viewport, segno-player |
+| DL-023 | Canvas rendering separates pure layout, lazy rasters, and playback overlays | accepted | canvas-viewport, segno-player |
+| DL-022 | Canvas score views preserve the original engraving | accepted | canvas-viewport, segno-player |
 | DL-021 | Visual identity and demo design: engraved-segno logotype and Swiss grid | accepted | demo, design |
 | DL-020 | The demo plays a bundled example or the visitor's own export | accepted | segno-player, demo |
 | DL-019 | Browser tests with Vitest's browser mode in Chromium | accepted | segno-player, tooling |

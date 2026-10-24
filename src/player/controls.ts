@@ -3,6 +3,7 @@
 // https://github.com/jimutt/segno
 
 import { formatTime } from './format.js';
+import type { ScoreMode } from './mode.js';
 
 /** What the controls need from the player: the media-element part of its API */
 export interface Playable extends EventTarget {
@@ -11,6 +12,7 @@ export interface Playable extends EventTarget {
   currentTime: number;
   playbackRate: number;
   follow: boolean;
+  mode: ScoreMode;
   play(): Promise<void>;
   pause(): void;
 }
@@ -25,6 +27,12 @@ const icons = {
 const TEMPO_MIN = 50;
 const TEMPO_MAX = 150;
 const TEMPO_STEP = 10;
+const MODE_NAMES: Record<ScoreMode, string> = {
+  auto: 'Auto',
+  full: 'Full score',
+  'two-system': 'Zoom',
+  reflow: 'Reflow',
+};
 
 // An element with a class name, a part and some properties
 function element<K extends keyof HTMLElementTagNameMap>(
@@ -41,7 +49,7 @@ function element<K extends keyof HTMLElementTagNameMap>(
 
 /**
  * The built-in controls: playback and seeking, with tempo and follow settings that collapse on narrow players.
- * @decision(DL-016)
+ * @decision(DL-016) @decision(DL-024)
  */
 export function createControls(player: Playable): HTMLElement {
   const bar = element('div', 'controls', 'controls');
@@ -103,6 +111,21 @@ export function createControls(player: Playable): HTMLElement {
     event.preventDefault();
   });
 
+  const modeLabel = element('label', 'mode', 'mode');
+  const mode = element('select', '', 'mode-input');
+  mode.setAttribute('aria-label', 'Score layout');
+  for (const value of ['auto', 'full', 'two-system', 'reflow'] as const) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = MODE_NAMES[value];
+    mode.append(option);
+  }
+  mode.addEventListener('change', () => {
+    player.mode = mode.value as ScoreMode;
+  });
+  modeLabel.append(mode);
+  settings.append(modeLabel);
+
   const tempo = element('div', 'tempo', 'tempo');
   tempo.setAttribute('role', 'group');
   tempo.setAttribute('aria-label', 'Tempo');
@@ -155,14 +178,19 @@ export function createControls(player: Playable): HTMLElement {
   const showFollow = (): void => {
     follow.checked = player.follow;
   };
+  const showMode = (): void => {
+    mode.value = player.mode;
+  };
   for (const type of ['play', 'pause', 'ended', 'emptied']) player.addEventListener(type, showState);
   for (const type of ['timeupdate', 'durationchange', 'seeked', 'emptied']) player.addEventListener(type, showTime);
   player.addEventListener('ratechange', showRate);
   player.addEventListener('followchange', showFollow);
+  player.addEventListener('modechange', showMode);
   showState();
   showTime();
   showRate();
   showFollow();
+  showMode();
 
   bar.append(play, restart, progress, settingsButton, settings);
   return bar;

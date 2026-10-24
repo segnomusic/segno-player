@@ -5,3 +5,4 @@ coverage/
 .dld-state.yaml.lock
 site/
 .vitest/
+/canvas-prototype.html
