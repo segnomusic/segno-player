@@ -1,18 +1,18 @@
 # <img src="docs/logo.svg" alt="Segno" height="54" />
 
-<!-- @decision(DL-021) -->
+<!-- @decision(DL-021) @decision(DL-025) -->
 
 Play a score's own audio on its own engraved pages, and follow along: a marker on the bar being played and a thin cursor that flows from note to note. Built for MuseScore exports.
 
-[![Segno player showing a bar marker, note cursor and playback controls on När juldagsmorgon glimmar](docs/preview.png)](https://jimutt.github.io/segno/)
+[![Segno player showing a bar marker, note cursor and playback controls on När juldagsmorgon glimmar](docs/preview.png)](https://segnomusic.github.io/segno-player/)
 
 Web notation libraries draw the score themselves from MusicXML or similar, reflowing it to the screen, which can make a carefully engraved score harder to read. Where they offer playback, it is usually synthesized, or a recording aligned by hand. Segno keeps the pages the engraver set and plays a real recording without manual alignment: MuseScore already exports the position and time of every bar and note in playback order, so Segno never interprets the score itself.
 
-> **Status: early.** The core library (`segno/core`) and the `<segno-player>` web component work and are tested; their APIs may still change before 1.0. Nothing is published to npm yet. Try the bundled example or your own export on the [demo page](https://jimutt.github.io/segno/).
+> **Status: early.** The core library (`@segnomusic/player/core`) and the `<segno-player>` web component work and are tested; their APIs may still change before 1.0. Nothing is published to npm yet. Try the bundled example or your own export on the [demo page](https://segnomusic.github.io/segno-player/).
 
 ## What's in the box
 
-- **`segno/core`**: a dependency-free library that turns MuseScore's position files into a small _sync map_ and answers "what plays at time t". It has no DOM, so it runs in Node (at build time) and in the browser.
+- **`@segnomusic/player/core`**: a dependency-free library that turns MuseScore's position files into a small _sync map_ and answers "what plays at time t". It has no DOM, so it runs in Node (at build time) and in the browser.
 - **`<segno-player>`**: a framework-free web component that shows the SVG pages, plays the audio and draws the markers. It works on any site, and its API follows the `<audio>` element.
 - **`segno build-sync`** _(coming)_: a CLI to build sync maps ahead of time.
 
@@ -45,7 +45,7 @@ What was verified, with MuseScore 4.7.5 (Linux build, headless):
 ## Using the player
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/npm/segno/dist/player/index.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@segnomusic/player/dist/player/index.js"></script>
 
 <segno-player
   pages="song-1.svg song-2.svg"
@@ -58,7 +58,7 @@ What was verified, with MuseScore 4.7.5 (Linux build, headless):
 </segno-player>
 ```
 
-With a bundler, `import 'segno/player'` defines the element. The modules are plain ES modules, so a CDN serves them as they are. Importing them where there is no DOM (server rendering) is harmless: the element is only defined in the browser.
+With a bundler, `import '@segnomusic/player/player'` defines the element. The modules are plain ES modules, so a CDN serves them as they are. Importing them where there is no DOM (server rendering) is harmless: the element is only defined in the browser.
 
 The player takes the width it is given: in a layout that sizes elements to their content (an inline block, a flex row), give it a width or `flex: 1`.
 
@@ -90,11 +90,11 @@ Theme it with `--segno-*` custom properties, `::part()` and container queries: s
 ## Using the core
 
 ```sh
-npm install segno
+npm install @segnomusic/player
 ```
 
 ```js
-import { buildSync, createTimeline, readViewBox } from 'segno/core';
+import { buildSync, createTimeline, readViewBox } from '@segnomusic/player/core';
 
 // The SVG pages' sizes, in page order
 const pages = svgTexts.map(readViewBox);

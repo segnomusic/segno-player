@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 The Segno contributors
-// https://github.com/jimutt/segno
+// https://github.com/segnomusic/segno-player
 
 /** An element of a positions file: a bar (.mpos) or a segment (.spos), in MuseScore's units. */
 export interface PositionElement {

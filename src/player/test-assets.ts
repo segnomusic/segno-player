@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 The Segno contributors
-// https://github.com/jimutt/segno
+// https://github.com/segnomusic/segno-player
 
 // Synthetic pages and audio for the player's browser tests: the fixture's positions need only a page of the
 // right size and audio of the right length, not the real score.

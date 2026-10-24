@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 The Segno contributors
-// https://github.com/jimutt/segno
+// https://github.com/segnomusic/segno-player
 
 // Builds the demo site into site/: the pages in demo/, stamped with the commit they were built from, and the
 // built package under site/segno/, where the demo imports the player from.

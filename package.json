@@ -1,14 +1,14 @@
 {
-  "name": "segno",
+  "name": "@segnomusic/player",
   "version": "0.0.0",
   "description": "Play a score's own audio on its own engraved pages, following the bar and the notes. For MuseScore exports.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jimutt/segno.git"
+    "url": "git+https://github.com/segnomusic/segno-player.git"
   },
-  "homepage": "https://github.com/jimutt/segno#readme",
-  "bugs": "https://github.com/jimutt/segno/issues",
+  "homepage": "https://github.com/segnomusic/segno-player#readme",
+  "bugs": "https://github.com/segnomusic/segno-player/issues",
   "keywords": [
     "sheet music",
     "score",
@@ -57,7 +57,7 @@
     "changeset": "changeset",
     "release": "npm run build && changeset publish",
     "license-headers": "node scripts/check-spdx.mjs",
-    "smoke": "node --input-type=module -e \"const core = await import('segno/core'); await import('segno/player'); if (typeof core.buildSync !== 'function') process.exit(1);\"",
+    "smoke": "node --input-type=module -e \"const core = await import('@segnomusic/player/core'); await import('@segnomusic/player/player'); if (typeof core.buildSync !== 'function') process.exit(1);\"",
     "build:demo": "npm run build && node scripts/build-demo.mjs",
     "demo": "npm run build:demo && vite site"
   },

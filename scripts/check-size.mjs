@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 The Segno contributors
-// https://github.com/jimutt/segno
+// https://github.com/segnomusic/segno-player
 
 // Checks the built entry points against their size budgets (minified size isn't measured: the
 // published files stay readable, so this is the gzipped size of what tsc emits).

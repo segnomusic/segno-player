@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 The Segno contributors
-// https://github.com/jimutt/segno
+// https://github.com/segnomusic/segno-player
 
 import { type PositionElement, type PositionEvent, parsePositions } from './positions.js';
 import type { PageSize } from './svg.js';

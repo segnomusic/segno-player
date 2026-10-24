@@ -7,8 +7,8 @@ Thanks for helping. Bug reports, fixes, test scores and documentation are all we
 You need Node.js 22 or later.
 
 ```sh
-git clone https://github.com/jimutt/segno.git
-cd segno
+git clone https://github.com/segnomusic/segno-player.git
+cd segno-player
 npm install
 npm test
 ```
@@ -40,12 +40,12 @@ The coverage floor only goes up: if your change raises coverage, you may raise t
   ```ts
   // SPDX-License-Identifier: MIT
   // Copyright (C) 2026 The Segno contributors
-  // https://github.com/jimutt/segno
+  // https://github.com/segnomusic/segno-player
   ```
 
 ## Previews
 
-Every pull request from a branch of this repository gets a preview of the demo site at `https://jimutt.github.io/segno/pr-preview/pr-<number>/`, linked in a comment on the pull request. Pull requests from forks don't get one yet. Build the demo locally with `npm run build:demo` and open `site/index.html`.
+Every pull request from a branch of this repository gets a preview of the demo site at `https://segnomusic.github.io/segno-player/pr-preview/pr-<number>/`, linked in a comment on the pull request. Pull requests from forks don't get one yet. Build the demo locally with `npm run build:demo` and open `site/index.html`.
 
 ## Decisions
 

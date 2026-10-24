@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 226 96" width="194" height="82" role="img" aria-label="Segno">
   <!-- SPDX-License-Identifier: MIT -->
   <!-- Copyright (C) 2026 The Segno contributors -->
-  <!-- https://github.com/jimutt/segno -->
+  <!-- https://github.com/segnomusic/segno-player -->
   <!-- @decision(DL-021) -->
   <style>
     .ink { fill: #0d0e0d; stroke: #0d0e0d; }

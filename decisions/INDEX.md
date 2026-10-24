@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-025 | Segno Music organization, scoped player package, and migrated project URLs | accepted | packaging, demo, ci |
 | DL-024 | Public score mode API with container-based auto selection | accepted | canvas-viewport, segno-player |
 | DL-023 | Canvas rendering separates pure layout, lazy rasters, and playback overlays | accepted | canvas-viewport, segno-player |
 | DL-022 | Canvas score views preserve the original engraving | accepted | canvas-viewport, segno-player |

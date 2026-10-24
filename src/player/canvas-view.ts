@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 The Segno contributors
-// https://github.com/jimutt/segno
+// https://github.com/segnomusic/segno-player
 
 import { type PageSize, readViewBox, type SyncMap } from '../core/index.js';
 import { CanvasLayout, type CanvasMode, type Crop, type Rect, type ReflowScene, type Tile } from './canvas-layout.js';
