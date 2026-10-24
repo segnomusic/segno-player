@@ -128,11 +128,19 @@ describe('markers', () => {
     expect(player.currentBar).toBe(4);
   });
 
+  test('uses a 15 ms bar lead by default', async () => {
+    const player = await ready();
+    await seek(player, startOf(player, 3) - 0.02);
+    expect(player.currentBar).toBe(2);
+    await seek(player, startOf(player, 3) - 0.01);
+    expect(player.currentBar).toBe(3);
+  });
+
   test('places the note cursor on the note playing, unless note-cursor is off', async () => {
     const player = await ready();
     const sync = syncOf(player);
     const [note, ms] = sync.noteEvents?.[5] ?? [];
-    await seek(player, (ms ?? 0) / 1000);
+    await seek(player, ((ms ?? 0) + 20) / 1000);
     const cursor = query(player, '.note-cursor');
     expectPercent(cursor.style.left, sync.notes?.[note ?? 0]?.[1] ?? 0);
     player.setAttribute('note-cursor', 'off');
@@ -642,5 +650,156 @@ describe('theming', () => {
     expect(getComputedStyle(query(player, '.settings')).display).toBe('flex');
     player.style.setProperty('--segno-controls', 'compact');
     expect(getComputedStyle(query(player, '.controls')).flexWrap).toBe('nowrap');
+  });
+});
+
+describe('score modes', () => {
+  test('full is the default and invalid values use the default', async () => {
+    const player = await ready({ controls: true });
+    expect(player.mode).toBe('full');
+    expect(player.resolvedMode).toBe('full');
+    expect(query(player, '.canvas-view').hidden).toBe(true);
+    expect(query<HTMLSelectElement>(player, '.mode select').value).toBe('full');
+    player.setAttribute('mode', 'something-else');
+    expect(player.mode).toBe('full');
+    expect(player.resolvedMode).toBe('full');
+  });
+
+  test('the property, attribute, selector and modechange event stay synchronized', async () => {
+    const player = await ready({ controls: true, style: 'width: 400px' });
+    const selector = query<HTMLSelectElement>(player, '.mode select');
+    const changes: string[] = [];
+    player.addEventListener('modechange', (event) => changes.push(`${event.detail.mode}:${event.detail.resolvedMode}`));
+    player.mode = 'two-system';
+    await vi.waitFor(() => expect(player.resolvedMode).toBe('two-system'));
+    expect(player.getAttribute('mode')).toBe('two-system');
+    expect(selector.value).toBe('two-system');
+    expect(selector.selectedOptions[0]?.textContent).toBe('Zoom');
+    expect(query(player, '.canvas-view').hidden).toBe(false);
+    expect(query(player, '.page').hidden).toBe(true);
+    expect(query<HTMLCanvasElement>(player, 'canvas').width).toBeGreaterThan(0);
+
+    selector.value = 'reflow';
+    selector.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => expect(player.resolvedMode).toBe('reflow'));
+    expect(player.mode).toBe('reflow');
+    player.setAttribute('mode', 'full');
+    expect(selector.value).toBe('full');
+    expect(player.resolvedMode).toBe('full');
+    expect(changes).toContain('two-system:two-system');
+    expect(changes).toContain('reflow:reflow');
+  });
+
+  test('auto follows host width while manual modes stay fixed', async () => {
+    await browser.viewport(1000, 700);
+    const player = await ready({ mode: 'auto', style: 'width: 500px' });
+    await vi.waitFor(() => expect(player.resolvedMode).toBe('two-system'));
+    player.style.width = '900px';
+    await vi.waitFor(() => expect(player.resolvedMode).toBe('full'));
+    player.style.width = '500px';
+    await vi.waitFor(() => expect(player.resolvedMode).toBe('two-system'));
+    player.mode = 'reflow';
+    await vi.waitFor(() => expect(player.resolvedMode).toBe('reflow'));
+    player.style.width = '900px';
+    await vi.waitFor(() => expect(player.resolvedMode).toBe('reflow'));
+    player.mode = 'auto';
+    await vi.waitFor(() => expect(player.resolvedMode).toBe('full'));
+  });
+
+  test('canvas modes preserve playback state and update on paused seeks without redrawing every time', async () => {
+    const draw = vi.spyOn(CanvasRenderingContext2D.prototype, 'drawImage');
+    const player = await ready({ mode: 'reflow', style: 'width: 400px' });
+    await vi.waitFor(() => expect(player.resolvedMode).toBe('reflow'));
+    player.playbackRate = 0.8;
+    await seek(player, startOf(player, 1) + 0.1);
+    const count = draw.mock.calls.length;
+    await seek(player, startOf(player, 2) + 0.2);
+    expect(player.currentBar).toBe(2);
+    expect(draw.mock.calls.length).toBe(count);
+    await player.play();
+    const time = player.currentTime;
+    player.mode = 'two-system';
+    await vi.waitFor(() => expect(player.resolvedMode).toBe('two-system'));
+    expect(player.paused).toBe(false);
+    expect(player.currentTime).toBeGreaterThanOrEqual(time);
+    expect(player.playbackRate).toBe(0.8);
+    player.pause();
+  });
+
+  test('canvas click-to-play uses the active crop transform', async () => {
+    const player = await ready({ mode: 'two-system', style: 'width: 400px' });
+    await vi.waitFor(() => expect(player.resolvedMode).toBe('two-system'));
+    const marker = activeMarker(player);
+    const rect = marker.getBoundingClientRect();
+    const playing = next(player, 'play');
+    query(player, '.canvas-view .overlay').dispatchEvent(
+      new MouseEvent('click', {
+        bubbles: true,
+        composed: true,
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+      }),
+    );
+    await playing;
+    expect(player.currentBar).toBe(0);
+    player.pause();
+  });
+
+  test('a prebuilt property map loads multi-page SVGs only for canvas mode', async () => {
+    const player = mount({
+      pages: `${blankPage()} ${blankPage(5000, 7000)}`,
+      audio: silentAudio(5),
+      mode: 'two-system',
+      style: 'width: 400px',
+    });
+    player.sync = {
+      v: 1,
+      bars: [
+        [0, 0.1, 0.1, 0.3, 0.1],
+        [1, 0.1, 0.1, 0.3, 0.1],
+      ],
+      events: [
+        [0, 0],
+        [1, 2000],
+      ],
+    };
+    await next(player, 'canplay');
+    await vi.waitFor(() => expect(player.resolvedMode).toBe('two-system'));
+    await seek(player, 2.1);
+    expect(player.currentBar).toBe(1);
+    expect(player.resolvedMode).toBe('two-system');
+    expect(activeMarker(player).style.left).toMatch(/px$/);
+  });
+
+  test('same-mode resizing updates the bar marker projection', async () => {
+    const player = await ready({ mode: 'two-system', style: 'width: 400px' });
+    await vi.waitFor(() => expect(player.resolvedMode).toBe('two-system'));
+    const before = Number.parseFloat(activeMarker(player).style.width);
+    player.style.width = '600px';
+    await vi.waitFor(() => expect(Number.parseFloat(activeMarker(player).style.width)).toBeGreaterThan(before));
+  });
+
+  test('full score still works when canvas contexts are unavailable', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const player = await ready();
+    expect(player.resolvedMode).toBe('full');
+    expect(player.currentBar).toBe(0);
+    player.mode = 'two-system';
+    await vi.waitFor(() => expect(warn).toHaveBeenCalledWith(expect.stringMatching(/Canvas 2D is not available/)));
+    expect(player.resolvedMode).toBe('full');
+    expect(player.sync).not.toBeNull();
+  });
+
+  test('canvas asset failure falls back to full pages without blocking audio', async () => {
+    const player = mount({ pages: '/missing-canvas-page.svg', audio: silentAudio(5), mode: 'reflow' });
+    player.sync = { v: 1, bars: [[0, 0.1, 0.1, 0.3, 0.1]], events: [[0, 0]] };
+    await next(player, 'canplay');
+    await vi.waitFor(() => {
+      expect(player.resolvedMode).toBe('full');
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/Showing full pages/));
+    });
+    expect(player.mode).toBe('reflow');
+    expect(player.sync).not.toBeNull();
+    expect(query(player, '.canvas-view').hidden).toBe(true);
   });
 });

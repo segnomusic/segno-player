@@ -4,7 +4,7 @@
 
 // Checks the built entry points against their size budgets (minified size isn't measured: the
 // published files stay readable, so this is the gzipped size of what tsc emits).
-// @decision(DL-011)
+// @decision(DL-011) @decision(DL-023)
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -13,7 +13,7 @@ import { gzipSync } from 'node:zlib';
 /** Directory under dist/ → budget in bytes, gzipped, for all its .js files together */
 const budgets = {
   core: 4000,
-  player: 12000,
+  player: 24000,
 };
 
 let failed = false;

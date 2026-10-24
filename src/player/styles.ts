@@ -4,7 +4,7 @@
 
 // The player's shadow styles. Every themable value is a --segno-* custom property read with its default as the
 // var() fallback, never set on :host, so values from the page inherit and win.
-// @decision(DL-015) @decision(DL-006)
+// @decision(DL-015) @decision(DL-006) @decision(DL-024)
 export const css = /* css */ `
 :host {
   display: block;
@@ -36,6 +36,23 @@ export const css = /* css */ `
   display: block;
   width: 100%;
   height: auto;
+}
+.canvas-view {
+  position: relative;
+  background: var(--segno-page-background, #fff);
+  box-shadow: var(--segno-page-shadow, 0 1px 2px rgb(0 0 0 / 0.12), 0 4px 16px rgb(0 0 0 / 0.08));
+}
+.canvas-view canvas {
+  display: block;
+  width: 100%;
+}
+@media print {
+  .canvas-view {
+    display: none !important;
+  }
+  .pages .page {
+    display: block !important;
+  }
 }
 .overlay {
   position: absolute;
@@ -216,12 +233,25 @@ export const css = /* css */ `
   text-align: center;
   font-weight: 700;
 }
+.mode,
 .follow {
   display: flex;
   align-items: center;
   min-height: 2.75rem;
   gap: 0.5rem;
   white-space: nowrap;
+}
+.mode select {
+  max-width: 8.5rem;
+  min-height: 2.25rem;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 0.5rem;
+  background: var(--segno-controls-background, #1d1c1a);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.follow {
   cursor: pointer;
 }
 .follow input {

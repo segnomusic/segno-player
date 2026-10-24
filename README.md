@@ -62,21 +62,24 @@ With a bundler, `import 'segno/player'` defines the element. The modules are pla
 
 The player takes the width it is given: in a layout that sizes elements to their content (an inline block, a flex row), give it a width or `flex: 1`.
 
-| Attribute                                |                                                                                            |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `pages`                                  | The SVG pages' URLs, in page order, separated by spaces                                    |
-| `audio`                                  | The audio's URL                                                                            |
-| `positions`, `notes`                     | The `.mpos` and (optional, for the note cursor) `.spos` files' URLs                        |
-| `sync`                                   | A prebuilt sync map's URL, instead of `positions` and `notes` (or set the `sync` property) |
-| `controls`                               | Show play/pause, back to beginning, time, seek, tempo and follow controls                  |
-| `follow`                                 | Scroll the playing system into view when it leaves the screen                              |
-| `alt`                                    | The score's title, for the pages' alt text                                                 |
-| `bar-lead`, `note-lead`                  | How many ms early the bar marker and the note cursor move (default 20 and 0)               |
-| `note-cursor="off"`, `bar-change="jump"` | No note cursor; switch bars at once instead of crossfading                                 |
+| Attribute                                |                                                                                                 |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `pages`                                  | The SVG pages' URLs, in page order, separated by spaces                                         |
+| `audio`                                  | The audio's URL                                                                                 |
+| `positions`, `notes`                     | The `.mpos` and (optional, for the note cursor) `.spos` files' URLs                             |
+| `sync`                                   | A prebuilt sync map's URL, instead of `positions` and `notes` (or set the `sync` property)      |
+| `controls`                               | Show playback, tempo, score-layout and follow controls                                          |
+| `mode`                                   | `full` (default), `two-system`, `reflow`, or `auto`                                             |
+| `follow`                                 | Scroll the playing system into view when it leaves the screen in full-score mode                |
+| `alt`                                    | The score's title, for the pages' alt text                                                      |
+| `bar-lead`, `note-lead`                  | Timing offsets in ms for the bar marker and note cursor (default 15 and −20; positive is early) |
+| `note-cursor="off"`, `bar-change="jump"` | No note cursor; switch bars at once instead of crossfading                                      |
 
 The playback API follows `HTMLMediaElement`: `play()`, `pause()`, `currentTime` (seconds), `duration`, `playbackRate` (pitch preserved), `paused`, `error`, and the events `play`, `pause`, `playing`, `waiting`, `seeking`, `seeked`, `timeupdate`, `ratechange`, `durationchange`, `loadedmetadata`, `emptied`, `ended`, `error` and `canplay` (once the audio can play and the markers are ready). On top of that: `currentBar`, `playBar(index)` and the `barchange` event (`detail: { bar, event }`). `sync` holds the sync map in use, or `null` while there are no markers.
 
-The built-in tempo buttons adjust playback from 50–150% in steps of 10%. Back to beginning pauses and resets the score. On narrow players, a settings button reveals tempo and the "Follow score" checkbox below the playback controls. The boolean `follow` property reflects the `follow` attribute; `followchange` fires when it is switched, including by the checkbox. Following scrolls the score; turning it off leaves the markers running.
+The `mode` property reflects the `mode` attribute; `resolvedMode` reports the view on screen, and `modechange` reports both as `detail: { mode, resolvedMode }`. Full score is always the default. Two-system mode crops the original engraving around pairs of systems; reflow recombines whole engraved bar regions into two prepared rows without moving individual symbols. `auto` chooses full score at a player width of 768px or more and two-system below it. The built-in layout selector and external code share the same property, so the latest selection wins. Canvas assets load on demand and fall back to full pages if they cannot be rendered.
+
+The built-in tempo buttons adjust playback from 50–150% in steps of 10%. Back to beginning pauses and resets the score. On narrow players, a settings button reveals the score-layout selector, tempo and the "Follow score" checkbox below the playback controls. The boolean `follow` property reflects the `follow` attribute; `followchange` fires when it is switched, including by the checkbox. Following scrolls the score; turning it off leaves the markers running.
 
 Clicking a bar plays from it. On the focused score, Space or K plays and pauses, ← and → move between bars, and Home goes to the start.
 

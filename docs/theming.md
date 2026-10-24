@@ -64,6 +64,8 @@ For anything the properties don't cover, style the parts with `::part()`:
 | `pages`                            | The scrolling column of pages (focusable, with the keyboard shortcuts)                  |
 | `page`                             | Each page's sheet                                                                       |
 | `page-image`                       | Each page's image                                                                       |
+| `canvas-view`                      | The active two-system or reflow view                                                    |
+| `canvas-score`                     | The rasterized score canvas                                                             |
 | `bar-marker`                       | The bar marker (two elements that crossfade)                                            |
 | `note-cursor`                      | The note cursor                                                                         |
 | `controls-area`                    | The area below the pages that holds the controls (sticky at the bottom of the viewport) |
@@ -71,7 +73,8 @@ For anything the properties don't cover, style the parts with `::part()`:
 | `play-button`, `restart-button`    | Play/pause and back to beginning                                                        |
 | `time`, `current-time`, `duration` | Both time labels, or the elapsed time and duration individually                         |
 | `seek`                             | The seek slider                                                                         |
-| `settings-button`, `settings`      | The narrow-layout disclosure button and the tempo/follow settings panel                 |
+| `settings-button`, `settings`      | The narrow-layout disclosure button and its settings panel                              |
+| `mode`, `mode-input`               | The score-layout label and native selector                                              |
 | `tempo`                            | The tempo group                                                                         |
 | `tempo-decrease`, `tempo-increase` | The slower and faster buttons                                                           |
 | `tempo-value`                      | The current percentage                                                                  |
@@ -88,7 +91,7 @@ segno-player::part(controls-area) {
 
 ## Container queries
 
-The player is a size container named `segno-player`: its built-in controls lay out by the player's own width. At 44rem and wider, all controls share one row. Below 44rem, play, restart, time and seeking stay on one row with a settings button; tempo and follow appear in a second row only when that button is opened. Escape closes the panel and returns focus to the button. The compact preset hides restart, time and settings, leaving just play and seek.
+The player is a size container named `segno-player`: its built-in controls lay out by the player's own width. At 44rem and wider, all controls share one row. Below 44rem, play, restart, time and seeking stay on one row with a settings button; score layout, tempo and follow appear in a second row only when that button is opened. Escape closes the panel and returns focus to the button. The compact preset hides restart, time and settings, leaving just play and seek.
 
 A size container doesn't take its width from its content, so in a layout that sizes elements to their content (an inline block, a flex row, an `auto` grid column) give the player a width, `width: 100%` or `flex: 1`, or it collapses to nothing. A site can do the same around the player with its own containers:
 
