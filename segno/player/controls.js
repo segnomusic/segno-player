@@ -12,6 +12,12 @@ const icons = {
 const TEMPO_MIN = 50;
 const TEMPO_MAX = 150;
 const TEMPO_STEP = 10;
+const MODE_NAMES = {
+    auto: 'Auto',
+    full: 'Full score',
+    'two-system': 'Zoom',
+    reflow: 'Reflow',
+};
 // An element with a class name, a part and some properties
 function element(tag, name, part, props = {}) {
     const el = Object.assign(document.createElement(tag), props);
@@ -21,7 +27,7 @@ function element(tag, name, part, props = {}) {
 }
 /**
  * The built-in controls: playback and seeking, with tempo and follow settings that collapse on narrow players.
- * @decision(DL-016)
+ * @decision(DL-016) @decision(DL-024)
  */
 export function createControls(player) {
     const bar = element('div', 'controls', 'controls');
@@ -80,6 +86,20 @@ export function createControls(player) {
         settingsButton.focus();
         event.preventDefault();
     });
+    const modeLabel = element('label', 'mode', 'mode');
+    const mode = element('select', '', 'mode-input');
+    mode.setAttribute('aria-label', 'Score layout');
+    for (const value of ['auto', 'full', 'two-system', 'reflow']) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = MODE_NAMES[value];
+        mode.append(option);
+    }
+    mode.addEventListener('change', () => {
+        player.mode = mode.value;
+    });
+    modeLabel.append(mode);
+    settings.append(modeLabel);
     const tempo = element('div', 'tempo', 'tempo');
     tempo.setAttribute('role', 'group');
     tempo.setAttribute('aria-label', 'Tempo');
@@ -130,16 +150,21 @@ export function createControls(player) {
     const showFollow = () => {
         follow.checked = player.follow;
     };
+    const showMode = () => {
+        mode.value = player.mode;
+    };
     for (const type of ['play', 'pause', 'ended', 'emptied'])
         player.addEventListener(type, showState);
     for (const type of ['timeupdate', 'durationchange', 'seeked', 'emptied'])
         player.addEventListener(type, showTime);
     player.addEventListener('ratechange', showRate);
     player.addEventListener('followchange', showFollow);
+    player.addEventListener('modechange', showMode);
     showState();
     showTime();
     showRate();
     showFollow();
+    showMode();
     bar.append(play, restart, progress, settingsButton, settings);
     return bar;
 }

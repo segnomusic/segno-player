@@ -2,8 +2,10 @@
 // Copyright (C) 2026 The Segno contributors
 // https://github.com/jimutt/segno
 import { createTimeline } from '../core/index.js';
+import { CanvasView } from './canvas-view.js';
 import { createControls } from './controls.js';
 import { checkSyncMap, loadSync } from './load.js';
+import { automaticMode, scoreMode } from './mode.js';
 import { styles } from './styles.js';
 /** Events of the audio element that the player re-dispatches as its own */
 const MEDIA_EVENTS = [
@@ -24,8 +26,8 @@ const MEDIA_EVENTS = [
 /** How far the bar marker reaches into the neighbouring bars, as a fraction of the page width */
 // @decision(DL-006)
 const BAR_OVERLAP = 0.012;
-const DEFAULT_BAR_LEAD = 20;
-const DEFAULT_NOTE_LEAD = 0;
+const DEFAULT_BAR_LEAD = 15;
+const DEFAULT_NOTE_LEAD = -20;
 /** Seeks round a bar's start to the audio's precision; look up events this far ahead so a seek lands in its bar */
 const SEEK_TOLERANCE_MS = 1;
 const percent = (fraction) => `${(fraction * 100).toFixed(4)}%`;
@@ -53,14 +55,28 @@ export class SegnoPlayer extends Base {
         'bar-lead',
         'note-lead',
         'follow',
+        'mode',
     ];
     #audio = document.createElement('audio');
     #pagesEl = document.createElement('div');
     #live = document.createElement('div');
     #markers;
     #cursor = document.createElement('div');
+    #canvasView = new CanvasView(() => this.#refreshMode(), (error) => {
+        this.#canvasError = true;
+        this.#warn(`Showing full pages: ${error instanceof Error ? error.message : String(error)}`);
+        this.#refreshMode();
+    });
     #pages = [];
     #activeMarker = 0;
+    #inlineSize = 0;
+    #resolvedMode = 'full';
+    #renderedMode = 'full';
+    #renderedProjection = -1;
+    #notifiedMode = 'full';
+    #canvasError = false;
+    #resizeObserver = null;
+    #onWindowResize = () => this.#updateSize();
     // What was last applied, so that moving the element or upgrading it redoes only what changed
     #appliedPages = null;
     #appliedAudio = null;
@@ -145,15 +161,27 @@ export class SegnoPlayer extends Base {
     }
     connectedCallback() {
         this.#apply();
+        this.#resizeObserver ??= new ResizeObserver(() => this.#updateSize());
+        this.#resizeObserver.observe(this);
+        window.addEventListener('resize', this.#onWindowResize);
+        this.#updateSize();
     }
     disconnectedCallback() {
         this.#audio.pause();
         this.#stopLoop();
+        this.#resizeObserver?.disconnect();
+        window.removeEventListener('resize', this.#onWindowResize);
+        this.#canvasView.cancelLoading();
         if (!this.#loadSettled) {
             // Load again when connected again
             this.#load?.abort();
             this.#appliedLoad = null;
         }
+    }
+    #updateSize() {
+        this.#inlineSize = this.getBoundingClientRect().width;
+        this.#canvasView.resize(this.#inlineSize);
+        this.#refreshMode();
     }
     /** Moving the element with `moveBefore()` keeps it playing */
     connectedMoveCallback() { }
@@ -169,6 +197,10 @@ export class SegnoPlayer extends Base {
             return;
         if (name === 'alt')
             this.#updateAlt();
+        else if (name === 'mode') {
+            this.#canvasError = false;
+            this.#refreshMode();
+        }
         else if (name === 'note-cursor' || name === 'bar-lead' || name === 'note-lead')
             this.#update();
         else
@@ -212,6 +244,18 @@ export class SegnoPlayer extends Base {
     }
     set follow(value) {
         this.toggleAttribute('follow', value);
+    }
+    /** The requested score view; reflects the `mode` attribute. */
+    // @decision(DL-024)
+    get mode() {
+        return scoreMode(this.getAttribute('mode'));
+    }
+    set mode(value) {
+        this.setAttribute('mode', value);
+    }
+    /** The score view currently displayed, with automatic selection resolved. */
+    get resolvedMode() {
+        return this.#resolvedMode;
     }
     /** The bar being played, as an index into the sync map's bars; -1 without markers */
     get currentBar() {
@@ -284,13 +328,16 @@ export class SegnoPlayer extends Base {
             page.append(image, overlay);
             return { page, image, overlay };
         });
-        this.#pagesEl.replaceChildren(...this.#pages.map((p) => p.page));
+        this.#pagesEl.replaceChildren(...this.#pages.map((p) => p.page), this.#canvasView.root);
         this.#updateAlt();
         this.#event = -1;
         this.#bar = -1;
+        this.#canvasError = false;
+        this.#canvasView.setScore(this.#pageUrls(), []);
     }
     #updateAlt() {
         const alt = this.getAttribute('alt');
+        this.#canvasView.setLabel(alt ? `${alt}, zoomed score` : 'Zoomed score');
         const count = this.#pages.length;
         this.#pages.forEach(({ image }, i) => {
             image.alt = alt ? `${alt}, page ${i + 1} of ${count}` : `Page ${i + 1} of ${count}`;
@@ -302,6 +349,34 @@ export class SegnoPlayer extends Base {
             if (page)
                 page.page.style.aspectRatio = `${size.w} / ${size.h}`;
         });
+    }
+    // Score views
+    // @decision(DL-022) @decision(DL-024)
+    #refreshMode() {
+        const mode = this.mode;
+        let desired = mode === 'auto' ? automaticMode(this.#inlineSize) : mode;
+        if (desired !== 'full' && (!this.#markersOn() || this.#canvasError))
+            desired = 'full';
+        if (desired !== 'full') {
+            this.#canvasView.resize(this.#inlineSize);
+            this.#canvasView.setScore(this.#pageUrls(), this.#sync?.bars ?? []);
+            this.#canvasView.setMode(desired, this.#bar);
+            this.#canvasView.update(this.#bar);
+            if (!this.#canvasView.ready)
+                desired = 'full';
+        }
+        const changed = desired !== this.#resolvedMode;
+        this.#resolvedMode = desired;
+        const canvas = desired !== 'full';
+        this.#canvasView.root.hidden = !canvas;
+        for (const page of this.#pages)
+            page.page.hidden = canvas;
+        this.#pagesEl.setAttribute('data-mode', desired);
+        this.#update();
+        if (mode !== this.#notifiedMode || changed) {
+            this.#notifiedMode = mode;
+            this.dispatchEvent(new CustomEvent('modechange', { detail: { mode, resolvedMode: desired } }));
+        }
     }
     // Loading
     #setAudioSource(src) {
@@ -371,6 +446,7 @@ export class SegnoPlayer extends Base {
     #setTimeline(sync, timeline) {
         this.#sync = sync;
         this.#timeline = timeline;
+        this.#canvasError = false;
         this.#lastEventMs = sync?.events.at(-1)?.[1] ?? 0;
         this.#event = -1;
         this.#bar = -1;
@@ -384,7 +460,7 @@ export class SegnoPlayer extends Base {
                 `(${(this.#lastEventMs / 1000).toFixed(1)} s). Was "Play repeats" off when it was exported?`);
         }
         this.#audioTooShort = tooShort;
-        this.#update();
+        this.#refreshMode();
     }
     #maybeCanPlay() {
         if (this.#audioReady && this.#loadSettled && !this.#canplayFired) {
@@ -426,47 +502,89 @@ export class SegnoPlayer extends Base {
         const barLead = numberAttribute(this.getAttribute('bar-lead'), DEFAULT_BAR_LEAD);
         const noteLead = numberAttribute(this.getAttribute('note-lead'), DEFAULT_NOTE_LEAD);
         const now = timeline.at(ms + barLead * rate, endMs);
-        if (now && now.event !== this.#event) {
-            const changedBar = now.bar !== this.#bar;
+        const note = this.getAttribute('note-cursor') === 'off' ? null : timeline.noteAt(ms + noteLead * rate, endMs);
+        const eventChanged = now !== null && now.event !== this.#event;
+        const changedBar = now !== null && now.bar !== this.#bar;
+        if (now) {
             this.#event = now.event;
             this.#bar = now.bar;
-            if (changedBar)
-                this.#placeBar(now.page, now.box);
+        }
+        const viewChanged = this.#renderedMode !== this.#resolvedMode;
+        if (this.#resolvedMode !== 'full')
+            this.#canvasView.update(this.#bar);
+        const projection = this.#resolvedMode === 'full' ? -1 : this.#canvasView.projectionVersion;
+        const projectionChanged = projection !== this.#renderedProjection;
+        if (now && (changedBar || viewChanged || projectionChanged))
+            this.#placeBar(now.page, now.box, changedBar);
+        if (now && eventChanged) {
             this.dispatchEvent(new CustomEvent('barchange', { detail: { bar: now.bar, event: now.event } }));
-            if (!audio.paused)
+            if (!audio.paused && this.#resolvedMode === 'full')
                 this.#follow();
         }
-        const note = this.getAttribute('note-cursor') === 'off' ? null : timeline.noteAt(ms + noteLead * rate, endMs);
         const cursor = this.#cursor;
-        cursor.hidden = !note;
-        if (note) {
-            const overlay = this.#pages[note.page]?.overlay;
-            if (overlay && cursor.parentElement !== overlay)
+        const overlay = this.#resolvedMode === 'full' ? this.#pages[note?.page ?? -1]?.overlay : this.#canvasView.overlay;
+        const rect = note && this.#resolvedMode !== 'full' ? this.#canvasView.projectNote(note) : null;
+        cursor.hidden = !note || !overlay || (this.#resolvedMode !== 'full' && !rect);
+        if (note && overlay && !cursor.hidden) {
+            if (cursor.parentElement !== overlay)
                 overlay.append(cursor);
-            cursor.style.left = percent(note.x);
-            cursor.style.top = percent(note.y);
-            cursor.style.height = percent(note.h);
+            if (rect) {
+                cursor.style.left = `${rect.x}px`;
+                cursor.style.top = `${rect.y}px`;
+                cursor.style.height = `${rect.h}px`;
+            }
+            else {
+                cursor.style.left = percent(note.x);
+                cursor.style.top = percent(note.y);
+                cursor.style.height = percent(note.h);
+            }
         }
+        this.#renderedMode = this.#resolvedMode;
+        this.#renderedProjection = projection;
     }
-    /** Crossfades the bar marker to a bar: the current one fades out, the other fades in on the new bar */
-    // @decision(DL-006)
-    #placeBar(page, [x, y, w, h]) {
+    /** Places the bar marker, crossfading only when playback changes bars. */
+    // @decision(DL-006) @decision(DL-023)
+    #placeBar(page, [x, y, w, h], crossfade = true) {
         const previous = this.#markers[this.#activeMarker];
-        this.#activeMarker = 1 - this.#activeMarker;
+        if (crossfade)
+            this.#activeMarker = 1 - this.#activeMarker;
         const next = this.#markers[this.#activeMarker];
-        const overlay = this.#pages[page]?.overlay;
-        if (!previous || !next || !overlay)
+        const overlay = this.#resolvedMode === 'full' ? this.#pages[page]?.overlay : this.#canvasView.overlay;
+        const rect = this.#resolvedMode === 'full' ? null : this.#canvasView.projectBar(this.#bar, page, [x, y, w, h]);
+        if (!previous || !next || !overlay || (this.#resolvedMode !== 'full' && !rect)) {
+            for (const marker of this.#markers)
+                marker.hidden = true;
             return;
-        previous.classList.remove('on');
+        }
+        if (crossfade)
+            previous.classList.remove('on');
+        else {
+            const other = this.#markers[1 - this.#activeMarker];
+            if (other) {
+                other.classList.remove('on');
+                other.hidden = true;
+            }
+        }
         if (next.parentElement !== overlay)
             overlay.append(next);
         const width = w + 2 * BAR_OVERLAP;
-        Object.assign(next.style, {
-            left: percent(x - BAR_OVERLAP),
-            top: percent(y),
-            width: percent(width),
-            height: percent(h),
-        });
+        if (rect) {
+            const scaleX = rect.w / w;
+            Object.assign(next.style, {
+                left: `${rect.x - BAR_OVERLAP * scaleX}px`,
+                top: `${rect.y}px`,
+                width: `${rect.w + 2 * BAR_OVERLAP * scaleX}px`,
+                height: `${rect.h}px`,
+            });
+        }
+        else {
+            Object.assign(next.style, {
+                left: percent(x - BAR_OVERLAP),
+                top: percent(y),
+                width: percent(width),
+                height: percent(h),
+            });
+        }
         next.style.setProperty('--fade', percent(BAR_OVERLAP / width));
         next.hidden = false;
         next.classList.add('on');
@@ -486,9 +604,18 @@ export class SegnoPlayer extends Base {
     /** Clicking a bar plays from it */
     #onClick(event) {
         const timeline = this.#markersOn();
+        if (!timeline)
+            return;
+        if (this.#resolvedMode !== 'full') {
+            const point = this.#canvasView.hitTest(event.clientX, event.clientY);
+            const bar = point ? timeline.barAtPoint(point.page, point.x, point.y) : -1;
+            if (bar >= 0)
+                this.playBar(bar).catch(() => { });
+            return;
+        }
         const index = this.#pages.findIndex(({ page }) => event.composedPath().includes(page));
         const page = this.#pages[index];
-        if (!timeline || !page)
+        if (!page)
             return;
         const rect = page.overlay.getBoundingClientRect();
         const bar = timeline.barAtPoint(index, (event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height);
