@@ -1,5 +1,11 @@
 # @segnomusic/player
 
+## 0.2.0
+
+### Minor Changes
+
+- 9ac91b6: Add Swedish and English localization for player controls, score descriptions, and screen-reader announcements. Use standard HTML `lang` inheritance with English fallback, and update translations in place without interrupting playback.
+
 ## 0.1.0
 
 ### Minor Changes
