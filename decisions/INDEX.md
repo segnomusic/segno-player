@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-030 | Simplify the demo header framing | accepted | demo, design |
 | DL-029 | Localize controls and accessible descriptions in place during playback | accepted | player-localization, segno-player, accessibility |
 | DL-028 | Resolve player language from standard HTML lang inheritance | accepted | player-localization, segno-player |
 | DL-027 | Typed built-in English and Swedish player dictionaries | accepted | player-localization, segno-player |
