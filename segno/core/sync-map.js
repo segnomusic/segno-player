@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 The Segno contributors
-// https://github.com/jimutt/segno
+// https://github.com/segnomusic/segno-player
 import { parsePositions } from './positions.js';
 /**
  * Positions file units per SVG unit at MuseScore's default PNG resolution: its positions writer scales by

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 The Segno contributors
-// https://github.com/jimutt/segno
+// https://github.com/segnomusic/segno-player
 import { buildSync, readViewBox } from '../core/index.js';
 async function fetchText(url, base, signal) {
     const response = await fetch(new URL(url, base), { signal });

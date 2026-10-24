@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 The Segno contributors
-// https://github.com/jimutt/segno
+// https://github.com/segnomusic/segno-player
 // The index of the last time at or before `ms` in sorted `times` (-1 before the first)
 function lastAtOrBefore(times, ms) {
     let lo = 0;

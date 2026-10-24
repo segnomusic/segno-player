@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 The Segno contributors
-// https://github.com/jimutt/segno
+// https://github.com/segnomusic/segno-player
 import { formatTime } from './format.js';
 const svgNS = 'http://www.w3.org/2000/svg';
 const icons = {

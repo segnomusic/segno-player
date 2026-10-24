@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 The Segno contributors
-// https://github.com/jimutt/segno
+// https://github.com/segnomusic/segno-player
 const PAD_X = 0.018;
 const PAD_Y = 0.018;
 const TILE_PAD_X = 0.004;

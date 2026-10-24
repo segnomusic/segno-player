@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 The Segno contributors
-// https://github.com/jimutt/segno
+// https://github.com/segnomusic/segno-player
 // The player's shadow styles. Every themable value is a --segno-* custom property read with its default as the
 // var() fallback, never set on :host, so values from the page inherit and win.
 // @decision(DL-015) @decision(DL-006) @decision(DL-024)

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 The Segno contributors
-// https://github.com/jimutt/segno
+// https://github.com/segnomusic/segno-player
 /**
  * The size of an SVG page, from the `viewBox` of its root `<svg>` tag.
  * @decision(DL-002)

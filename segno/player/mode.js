@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 The Segno contributors
-// https://github.com/jimutt/segno
+// https://github.com/segnomusic/segno-player
 export const SCORE_MODES = ['full', 'two-system', 'reflow', 'auto'];
 export const AUTO_TABLET_WIDTH = 768;
 // @decision(DL-024)

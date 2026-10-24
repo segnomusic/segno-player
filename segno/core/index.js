@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 The Segno contributors
-// https://github.com/jimutt/segno
+// https://github.com/segnomusic/segno-player
 /**
  * Segno's core: turns MuseScore's position exports into a sync map and answers what plays when.
  * No dependencies and no DOM, so it runs in Node (at build time) and in the browser.
