@@ -134,13 +134,6 @@ The files only belong together when they come from the same score and the same s
 - **One input score per job.** Jobs with several input files crash MuseScore 4.7.5.
 - **Headless Linux:** run the AppImage under `xvfb-run`. Its `offscreen` Qt platform plugin did not start in testing.
 
-### How well does it line up?
-
-Verified with MuseScore 4.7.5 (Linux build, headless):
-- Repeats, voltas, D.C./D.S., codas and fine come out in playback order: the position writer walks MuseScore's own unrolled repeat list. All 69 scores of MuseScore's repeat test suite (`src/engraving/tests/repeat_data`) matched the expected bar order.
-- Times follow MuseScore's tempo map, ritardandos included.
-- The exported MP3 sounds a small, constant amount after the event times (synthesizer latency), with no drift, measured with onset detection against a click track over a 108 s score with repeats and a ritardando.
-
 ## Player reference
 
 ### Player API
@@ -233,7 +226,7 @@ timeline.seekTimeForBar(bar, nowMs); // where to seek to play a bar: inside repe
 
 `buildSync()` throws when a file isn't a positions file, a bar is on a page that wasn't given, a box falls outside its page (the units or the pages don't match), an event names an unknown element, or the times go backwards. The sync map is plain JSON, so it can be built at build time and shipped with the page. Its format is documented in [docs/sync-map.md](docs/sync-map.md), and nothing says it has to come from MuseScore: anything that can produce bar positions and timings can write one.
 
-The synthesizer latency mentioned above, and whatever the listener's audio device adds (Bluetooth adds a lot), means markers that arrive exactly on the event time can feel late. The player's `bar-lead` and `note-lead` attributes move its markers early; with the core alone, look up a little ahead of `currentTime`.
+MuseScore's audio sounds slightly after the event times (synthesizer latency), and the listener's audio device adds its own delay on top (Bluetooth adds a lot). Markers that arrive exactly on the event time can therefore feel late. The player's `bar-lead` and `note-lead` attributes move its markers early; with the core alone, look up a little ahead of `currentTime`.
 
 ## Contributing
 
