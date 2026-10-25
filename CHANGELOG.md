@@ -1,5 +1,11 @@
 # @segnomusic/player
 
+## 0.3.1
+
+### Patch Changes
+
+- 9be095c: Export `SegnoPlayerAttributes`, the type of `<segno-player>`'s attributes, and document how to register the tag with React, Vue, Svelte and Angular in the README.
+
 ## 0.3.0
 
 ### Minor Changes
