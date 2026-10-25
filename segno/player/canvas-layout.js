@@ -8,21 +8,68 @@ const TILE_PAD_Y = 0.018;
 const ROW_PAD_X = 0.018;
 const ROW_GAP_CSS = 26;
 const SYSTEM_Y_TOLERANCE = 0.002;
+const STAFF_HEIGHTS_PER_VIEW = 15;
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-// @decision(DL-022)
+const median = (values) => {
+    if (!values.length)
+        return undefined;
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted[Math.floor((sorted.length - 1) / 2)];
+};
+const hasClass = (tag, name) => tag
+    .match(/\sclass="([^"]*)"/)?.[1]
+    ?.split(/\s+/)
+    .includes(name) ?? false;
+const coordinates = (value) => value
+    ?.trim()
+    .split(/[\s,]+/)
+    .map(Number)
+    .filter(Number.isFinite) ?? [];
+// @decision(DL-031)
+export function readEngravingGeometry(svg) {
+    const lines = [];
+    const barLines = [];
+    const lyricBottoms = [];
+    for (const match of svg.matchAll(/<(?:polyline|path)\b[^>]*>/g)) {
+        const tag = match[0];
+        if (hasClass(tag, 'StaffLines')) {
+            const points = coordinates(tag.match(/\spoints="([^"]*)"/)?.[1]);
+            if (points.length >= 2)
+                lines.push(points[1]);
+        }
+        else if (hasClass(tag, 'BarLine')) {
+            const points = coordinates(tag.match(/\spoints="([^"]*)"/)?.[1]);
+            const ys = points.filter((_, index) => index % 2 === 1);
+            if (ys.length >= 2)
+                barLines.push({ top: Math.min(...ys), bottom: Math.max(...ys) });
+        }
+        else if (hasClass(tag, 'Lyrics') || hasClass(tag, 'LyricsLineSegment')) {
+            const path = tag.match(/\sd="([^"]*)"/)?.[1];
+            const values = path
+                ? (path.match(/-?(?:\d*\.)?\d+(?:e[+-]?\d+)?/gi) ?? []).map(Number)
+                : coordinates(tag.match(/\spoints="([^"]*)"/)?.[1]);
+            const ys = values.filter((_, index) => index % 2 === 1);
+            if (ys.length)
+                lyricBottoms.push(Math.max(...ys));
+        }
+    }
+    return { staffLines: lines, barLines, lyricBottoms };
+}
+// @decision(DL-022) @decision(DL-031)
 export class CanvasLayout {
     bars;
     pageSizes;
     groups = [];
     groupOf = [];
     systemOf = [];
+    systemBottoms = [];
     chunkOfSystem = [];
     chunks = [];
     cropWidth;
     cropHeight;
     reflowWidth;
     rowMargin;
-    constructor(bars, pageSizes, barsPerGroup = 2) {
+    constructor(bars, pageSizes, barsPerGroup = 2, engraving = []) {
         if (!bars.length)
             throw new Error('CanvasLayout needs at least one bar');
         if (!pageSizes.length)
@@ -48,14 +95,21 @@ export class CanvasLayout {
         this.pageSizes = pageSizes;
         const systems = this.findSystems();
         this.findGroups(barsPerGroup, systems);
-        this.findChunks(systems);
+        this.findChunks(systems, engraving);
         const smallestPageWidth = Math.min(...pageSizes.map((page) => page.w));
         const smallestPageHeight = Math.min(...pageSizes.map((page) => page.h));
-        this.reflowWidth = Math.max(...this.groups.map((group) => {
+        const legacyWidth = Math.max(...this.groups.map((group) => {
             const page = this.page(group.page);
             return (group.x1 - group.x0 + 2 * PAD_X) * page.w;
         }));
+        const staffHeight = this.findStaffHeight(systems, engraving);
+        this.reflowWidth =
+            staffHeight === undefined
+                ? legacyWidth
+                : Math.max(staffHeight * STAFF_HEIGHTS_PER_VIEW, ...this.bars.map((bar) => (bar[3] + 2 * PAD_X) * this.page(bar[0]).w));
         this.cropWidth = Math.min(smallestPageWidth, this.reflowWidth);
+        if (staffHeight !== undefined)
+            this.findGroups(barsPerGroup, systems, this.reflowWidth);
         this.cropHeight = Math.min(smallestPageHeight, Math.max(...this.chunks.map((chunk) => (chunk.bottom - chunk.top + 2 * PAD_Y) * this.page(chunk.page).h)));
         this.rowMargin = ROW_PAD_X * smallestPageWidth;
     }
@@ -113,7 +167,9 @@ export class CanvasLayout {
                 const x0 = Math.max(0, bx * page.w - padX);
                 const y0 = Math.max(0, by * page.h - padY);
                 const x1 = Math.min(page.w, (bx + bw) * page.w + padX);
-                const y1 = Math.min(page.h, (by + bh) * page.h + padY);
+                const system = this.systemOf[barIndex];
+                const contentBottom = system === undefined ? by + bh : (this.systemBottoms[system] ?? by + bh);
+                const y1 = Math.min(page.h, contentBottom * page.h + padY);
                 const source = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
                 const target = { x, y, w: source.w * scale, h: source.h * scale };
                 tiles.push({ bar: barIndex, page: pageIndex, source, target, scale });
@@ -162,35 +218,72 @@ export class CanvasLayout {
         }
         return systems;
     }
-    findGroups(barsPerGroup, systems) {
+    findStaffHeight(systems, engraving) {
+        const heights = systems.flatMap((system) => {
+            const page = this.page(system.page);
+            const tolerance = SYSTEM_Y_TOLERANCE * page.h;
+            const top = system.top * page.h;
+            const bottom = system.bottom * page.h;
+            const lines = (engraving[system.page]?.staffLines ?? [])
+                .filter((y) => y >= top - tolerance && y <= bottom + tolerance)
+                .sort((a, b) => a - b);
+            const spacing = median(lines
+                .slice(1)
+                .map((y, index) => y - lines[index])
+                .filter((gap) => gap > 0));
+            const height = spacing === undefined ? undefined : spacing * 4;
+            const supported = height !== undefined &&
+                (engraving[system.page]?.barLines ?? []).some((line) => {
+                    const lineHeight = line.bottom - line.top;
+                    return (line.top >= top - tolerance &&
+                        line.bottom <= bottom + tolerance &&
+                        lineHeight >= height * 0.9 &&
+                        lineHeight <= height * 1.1);
+                });
+            return supported && height <= bottom - top + 2 * tolerance ? [height] : [];
+        });
+        return median(heights);
+    }
+    findGroups(barsPerGroup, systems, widthLimit = Infinity) {
+        this.groups.length = this.groupOf.length = 0;
         for (let start = 0; start < this.bars.length;) {
             const system = this.systemOf[start];
             if (system === undefined || !systems[system])
                 throw new Error(`CanvasLayout has no system for bar ${start}`);
-            const indices = [start];
-            let next = start + 1;
-            while (next < this.bars.length && indices.length < barsPerGroup && this.systemOf[next] === system) {
-                indices.push(next);
-                next += 1;
-            }
-            let x0 = Infinity;
-            let x1 = -Infinity;
-            for (const index of indices) {
-                const bar = this.bars[index];
-                if (!bar)
-                    throw new Error(`CanvasLayout has no bar ${index}`);
-                x0 = Math.min(x0, bar[1]);
-                x1 = Math.max(x1, bar[1] + bar[3]);
-                this.groupOf[index] = this.groups.length;
-            }
             const first = this.bars[start];
             if (!first)
                 throw new Error(`CanvasLayout has no bar ${start}`);
+            const indices = [start];
+            const x0 = first[1];
+            let x1 = first[1] + first[3];
+            this.groupOf[start] = this.groups.length;
+            let next = start + 1;
+            while (next < this.bars.length && indices.length < barsPerGroup && this.systemOf[next] === system) {
+                const bar = this.bars[next];
+                if (!bar)
+                    throw new Error(`CanvasLayout has no bar ${next}`);
+                const candidateX1 = Math.max(x1, bar[1] + bar[3]);
+                if ((candidateX1 - x0 + 2 * PAD_X) * this.page(bar[0]).w > widthLimit)
+                    break;
+                indices.push(next);
+                this.groupOf[next] = this.groups.length;
+                x1 = candidateX1;
+                next += 1;
+            }
             this.groups.push({ bars: indices, page: first[0], system, x0, x1 });
             start = next;
         }
     }
-    findChunks(systems) {
+    findChunks(systems, engraving) {
+        for (const [index, system] of systems.entries()) {
+            const page = this.page(system.page);
+            const next = systems[index + 1];
+            const nextTop = next?.page === system.page ? next.top : Infinity;
+            const lyricBottom = Math.max(0, ...(engraving[system.page]?.lyricBottoms ?? [])
+                .filter((bottom) => bottom >= system.top * page.h && bottom < nextTop * page.h)
+                .map((bottom) => bottom / page.h));
+            this.systemBottoms[index] = Math.max(system.bottom, lyricBottom);
+        }
         for (let index = 0; index < systems.length;) {
             const first = systems[index];
             if (!first)
@@ -201,7 +294,9 @@ export class CanvasLayout {
             this.chunks.push({
                 page: first.page,
                 top: paired ? Math.min(first.top, second.top) : first.top,
-                bottom: paired ? Math.max(first.bottom, second.bottom) : first.bottom,
+                bottom: paired
+                    ? Math.max(this.systemBottoms[index] ?? first.bottom, this.systemBottoms[index + 1] ?? second.bottom)
+                    : (this.systemBottoms[index] ?? first.bottom),
             });
             this.chunkOfSystem[index] = chunkIndex;
             if (paired)

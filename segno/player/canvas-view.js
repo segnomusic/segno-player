@@ -2,7 +2,7 @@
 // Copyright (C) 2026 The Segno contributors
 // https://github.com/segnomusic/segno-player
 import { readViewBox } from '../core/index.js';
-import { CanvasLayout } from './canvas-layout.js';
+import { CanvasLayout, readEngravingGeometry, } from './canvas-layout.js';
 import { messages } from './localization.js';
 const MAX_PAGE_PIXELS = 4_000_000;
 const MAX_CACHE_PIXELS = 8_000_000;
@@ -97,7 +97,7 @@ export class CanvasView {
                 return;
             this.#svgs = svgs;
             this.#sizes = svgs.map(readViewBox);
-            this.#layout = new CanvasLayout(this.#bars, this.#sizes);
+            this.#layout = new CanvasLayout(this.#bars, this.#sizes, 2, this.#svgs.map(readEngravingGeometry));
             this.#loading = false;
             this.#load = null;
             this.#dirty = true;
