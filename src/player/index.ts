@@ -15,5 +15,6 @@ if (globalThis.customElements && !customElements.get('segno-player')) {
   customElements.define('segno-player', SegnoPlayer);
 }
 
+export type { SegnoPlayerAttributes } from './attributes.js';
 export { type BarChangeDetail, SegnoPlayer } from './element.js';
 export type { ModeChangeDetail, ResolvedScoreMode, ScoreMode } from './mode.js';
