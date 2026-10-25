@@ -3,7 +3,15 @@
 // https://github.com/segnomusic/segno-player
 
 import { type PageSize, readViewBox, type SyncMap } from '../core/index.js';
-import { CanvasLayout, type CanvasMode, type Crop, type Rect, type ReflowScene, type Tile } from './canvas-layout.js';
+import {
+  CanvasLayout,
+  type CanvasMode,
+  type Crop,
+  type Rect,
+  type ReflowScene,
+  readEngravingGeometry,
+  type Tile,
+} from './canvas-layout.js';
 import { messages } from './localization.js';
 
 export interface CanvasNote {
@@ -134,7 +142,7 @@ export class CanvasView {
         if (generation !== this.#generation) return;
         this.#svgs = svgs;
         this.#sizes = svgs.map(readViewBox);
-        this.#layout = new CanvasLayout(this.#bars, this.#sizes);
+        this.#layout = new CanvasLayout(this.#bars, this.#sizes, 2, this.#svgs.map(readEngravingGeometry));
         this.#loading = false;
         this.#load = null;
         this.#dirty = true;

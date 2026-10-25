@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from 'vitest';
 import type { PageSize, SyncMap } from '../core/index.js';
-import { CanvasLayout, type Rect } from './canvas-layout.js';
+import { CanvasLayout, type Rect, readEngravingGeometry } from './canvas-layout.js';
 
 type Bars = SyncMap['bars'];
 
@@ -212,6 +212,136 @@ describe('CanvasLayout reflow geometry', () => {
     expectRect(scene.tiles[2]?.source, { x: 48, y: 82, w: 104, h: 136 });
     expect(scene.tiles[2]?.target.y).toBe(570);
     expect(scene.height).toBe(842);
+  });
+});
+
+describe('engraving-relative geometry', () => {
+  test('measures median staff height and lyric bottoms from MuseScore SVG geometry', () => {
+    const geometry = readEngravingGeometry(`
+      <svg viewBox="0 0 1000 1000">
+        <polyline class="StaffLines" points="10,100 900,100" />
+        <polyline class="StaffLines" points="10,125 900,125" />
+        <polyline class="StaffLines" points="10,150 900,150" />
+        <polyline class="StaffLines" points="10,175 900,175" />
+        <polyline class="StaffLines" points="10,200 900,200" />
+        <polyline class="StaffLines" points="10,400 900,400" />
+        <polyline class="StaffLines" points="10,425 900,425" />
+        <polyline class="StaffLines" points="10,450 900,450" />
+        <polyline class="StaffLines" points="10,475 900,475" />
+        <polyline class="StaffLines" points="10,500 900,500" />
+        <polyline class="BarLine" points="900,100 900,200" />
+        <path class="Lyrics" d="M10,210 C20,220 30,230 40,225" />
+        <polyline class="LyricsLineSegment" points="50,235 80,235" />
+        <path class="Text" d="M10,800 L20,900" />
+      </svg>
+    `);
+    expect(geometry.staffLines).toEqual([100, 125, 150, 175, 200, 400, 425, 450, 475, 500]);
+    expect(geometry.barLines).toEqual([{ top: 100, bottom: 200 }]);
+    expect(geometry.lyricBottoms).toEqual([230, 235]);
+  });
+
+  test('returns no staff lines when they are unavailable', () => {
+    expect(readEngravingGeometry('<svg><path class="Text" d="M0,0 L1,1" /></svg>')).toEqual({
+      staffLines: [],
+      barLines: [],
+      lyricBottoms: [],
+    });
+  });
+
+  test('uses the same staff-relative scale despite different bar widths', () => {
+    const geometry = [
+      { staffLines: [100, 112.5, 125, 137.5, 150], barLines: [{ top: 100, bottom: 150 }], lyricBottoms: [] },
+    ];
+    const wide = new CanvasLayout(
+      [bar(0, 0.05, 0.1, 0.35), bar(0, 0.4, 0.1, 0.35), bar(0, 0.05, 0.4, 0.2)],
+      [{ w: 1000, h: 1000 }],
+      2,
+      geometry,
+    );
+    const narrow = new CanvasLayout(
+      [bar(0, 0.05, 0.1, 0.1), bar(0, 0.15, 0.1, 0.1), bar(0, 0.05, 0.4, 0.1)],
+      [{ w: 1000, h: 1000 }],
+      2,
+      geometry,
+    );
+    expect(wide.crop(0).w).toBeCloseTo(0.75);
+    expect(narrow.crop(0).w).toBeCloseTo(wide.crop(0).w);
+    expect(narrow.reflow(0, 800).tiles[0]?.scale).toBeCloseTo(wide.reflow(0, 800).tiles[0]?.scale ?? 0);
+  });
+
+  test('splits groups at the selected width instead of shrinking the whole score', () => {
+    const layout = new CanvasLayout(
+      [bar(0, 0.05, 0.1, 0.35), bar(0, 0.42, 0.1, 0.35), bar(0, 0.05, 0.4, 0.2)],
+      [{ w: 1000, h: 1000 }],
+      2,
+      [{ staffLines: [100, 112.5, 125, 137.5, 150], barLines: [{ top: 100, bottom: 150 }], lyricBottoms: [] }],
+    );
+    expect(layout.visibleBars('two-system', 0)).toEqual([0]);
+    expect(layout.visibleBars('two-system', 1)).toEqual([1]);
+    expect(layout.reflow(0, 800).tiles.map((tile) => tile.bar)).toEqual([0, 1]);
+    expect(layout.crop(0).w).toBeCloseTo(0.75);
+  });
+
+  test('expands only as far as an individual padded bar requires', () => {
+    const layout = new CanvasLayout([bar(0, 0.05, 0.1, 0.8)], [{ w: 1000, h: 1000 }], 2, [
+      { staffLines: [100, 112.5, 125, 137.5, 150], barLines: [{ top: 100, bottom: 150 }], lyricBottoms: [] },
+    ]);
+    expect(layout.crop(0).w).toBeCloseTo(0.836);
+  });
+
+  test('falls back instead of treating gaps between one-line staves as staff spacing', () => {
+    const bars: Bars = [bar(0, 0.1, 0.1, 0.2, 0.01), bar(0, 0.1, 0.4, 0.2, 0.01)];
+    const page = { w: 1000, h: 1000 };
+    const legacy = new CanvasLayout(bars, [page], 1);
+    const separateSystems = new CanvasLayout(bars, [page], 1, [
+      { staffLines: [100, 400], barLines: [], lyricBottoms: [] },
+    ]);
+    expect(separateSystems.crop(0).w).toBeCloseTo(legacy.crop(0).w);
+    expect(separateSystems.reflow(0, 800).tiles[0]?.scale).toBeCloseTo(legacy.reflow(0, 800).tiles[0]?.scale ?? 0);
+
+    const oneSystem = [bar(0, 0.1, 0.1, 0.2, 0.2)];
+    const legacyOneSystem = new CanvasLayout(oneSystem, [page], 1);
+    const adjacentStaves = new CanvasLayout(oneSystem, [page], 1, [
+      { staffLines: [100, 300], barLines: [], lyricBottoms: [] },
+    ]);
+    expect(adjacentStaves.crop(0).w).toBeCloseTo(legacyOneSystem.crop(0).w);
+    expect(adjacentStaves.reflow(0, 800).tiles[0]?.scale).toBeCloseTo(
+      legacyOneSystem.reflow(0, 800).tiles[0]?.scale ?? 0,
+    );
+
+    const fiveStaves = [bar(0, 0.1, 0.1, 0.2, 0.4)];
+    const legacyFive = new CanvasLayout(fiveStaves, [page], 1);
+    const ambiguous = new CanvasLayout(fiveStaves, [page], 1, [
+      {
+        staffLines: [100, 200, 300, 400, 500],
+        barLines: [100, 200, 300, 400, 500].map((top) => ({ top, bottom: top + 1 })),
+        lyricBottoms: [],
+      },
+    ]);
+    expect(ambiguous.crop(0).w).toBeCloseTo(legacyFive.crop(0).w);
+    expect(ambiguous.reflow(0, 800).tiles[0]?.scale).toBeCloseTo(legacyFive.reflow(0, 800).tiles[0]?.scale ?? 0);
+  });
+
+  test('includes each system’s lyrics in two-system crops and reflow tiles', () => {
+    const layout = new CanvasLayout(
+      [bar(0, 0.1, 0.1, 0.2, 0.1), bar(0, 0.1, 0.4, 0.2, 0.1)],
+      [{ w: 1000, h: 1000 }],
+      1,
+      [
+        {
+          staffLines: [100, 125, 150, 175, 200, 400, 425, 450, 475, 500],
+          barLines: [
+            { top: 100, bottom: 200 },
+            { top: 400, bottom: 500 },
+          ],
+          lyricBottoms: [250, 550],
+        },
+      ],
+    );
+    expect(layout.crop(0).h).toBeCloseTo(0.486);
+    const tiles = layout.reflow(0, 800).tiles;
+    expectRect(tiles[0]?.source, { x: 96, y: 82, w: 208, h: 186 });
+    expectRect(tiles[1]?.source, { x: 96, y: 382, w: 208, h: 186 });
   });
 });
 
