@@ -70,7 +70,7 @@ Full score is always the default; the other views are opt-in.
 
 ### Frameworks and TypeScript
 
-<!-- @decision(DL-005) -->
+<!-- @decision(DL-005) @decision(DL-033) -->
 
 `<segno-player>` is a plain custom element, so it works in any framework once the module is imported on the client. The package exports `SegnoPlayerAttributes`, the type of its attributes, and `HTMLElementTagNameMap` already knows the element, so `document.querySelector('segno-player')` and `addEventListener('barchange', …)` are typed. JSX and templates need to be told about the tag. These snippets were checked against current React 19, Vue 3 and Svelte 5 types; put them in a `.d.ts` or `.ts` file your project includes.
 

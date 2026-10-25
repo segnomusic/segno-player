@@ -9,6 +9,7 @@ import type { ScoreMode } from './mode.js';
  * The attributes of `<segno-player>`, for typing it in JSX and templates (see the README for how to
  * register it with a framework). Values are what the HTML attribute holds: numbers may be given as strings,
  * and boolean attributes are present or absent.
+ * @decision(DL-033)
  */
 export interface SegnoPlayerAttributes {
   /** The SVG pages' URLs, in page order, separated by spaces */

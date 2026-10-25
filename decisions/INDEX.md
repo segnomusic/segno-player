@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-033 | Type the element's attributes with one exported type and document framework registration | accepted | player, packaging, typescript |
 | DL-032 | Use the package root for the component and remove the player subpath in 0.3.0 | accepted | packaging, release |
 | DL-031 | Calibrate canvas zoom from engraved staff size | accepted | engraving-relative-zoom, canvas-viewport, segno-player |
 | DL-030 | Simplify the demo header framing | accepted | demo, design |
