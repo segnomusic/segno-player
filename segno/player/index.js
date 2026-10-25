@@ -3,7 +3,7 @@
 // https://github.com/segnomusic/segno-player
 /**
  * `<segno-player>`. Importing this module defines the element (once, and only where there is a DOM).
- * @decision(DL-018)
+ * @decision(DL-018) @decision(DL-032)
  * @module
  */
 import { SegnoPlayer } from './element.js';
