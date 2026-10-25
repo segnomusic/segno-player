@@ -1,5 +1,11 @@
 # @segnomusic/player
 
+## 0.2.1
+
+### Patch Changes
+
+- 8547f81: Match Zoom and Reflow magnification to the engraved staff size across scores, prevent wide bar groups from shrinking notation, and keep each system's lyrics visible in cropped and recombined views.
+
 ## 0.2.0
 
 ### Minor Changes
