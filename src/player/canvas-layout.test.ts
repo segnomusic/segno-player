@@ -248,6 +248,38 @@ describe('engraving-relative geometry', () => {
     });
   });
 
+  test('ignores incomplete engraving primitives without inventing geometry', () => {
+    expect(
+      readEngravingGeometry(`
+        <svg>
+          <polyline />
+          <polyline class="StaffLines" />
+          <polyline class="StaffLines" points="10,invalid" />
+          <polyline class="BarLine" />
+          <polyline class="BarLine" points="900,100" />
+          <path class="Lyrics" />
+          <path class="Lyrics" d="Z" />
+          <polyline class="LyricsLineSegment" />
+        </svg>
+      `),
+    ).toEqual({ staffLines: [], barLines: [], lyricBottoms: [] });
+  });
+
+  test.each([
+    { top: 50, bottom: 150 },
+    { top: 250, bottom: 350 },
+    { top: 100, bottom: 250 },
+  ])('falls back when a bar line cannot validate staff height: %j', (barLine) => {
+    const bars: Bars = [bar(0, 0.1, 0.1, 0.2, 0.2)];
+    const page = { w: 1000, h: 1000 };
+    const legacy = new CanvasLayout(bars, [page]);
+    const layout = new CanvasLayout(bars, [page], 2, [
+      { staffLines: [100, 125, 150, 175, 200], barLines: [barLine], lyricBottoms: [] },
+    ]);
+    expect(layout.crop(0)).toEqual(legacy.crop(0));
+    expect(layout.reflow(0, 400)).toEqual(legacy.reflow(0, 400));
+  });
+
   test('uses the same staff-relative scale despite different bar widths', () => {
     const geometry = [
       { staffLines: [100, 112.5, 125, 137.5, 150], barLines: [{ top: 100, bottom: 150 }], lyricBottoms: [] },
