@@ -6,7 +6,7 @@ Play a score's own audio on its own engraved pages, and follow along: a marker o
 
 [![Segno player showing a bar marker, note cursor and playback controls on När juldagsmorgon glimmar](docs/preview.png)](https://segnomusic.github.io/segno-player/)
 
-> **Status: early.** The core library (`@segnomusic/player/core`) and the `<segno-player>` web component work and are tested; their APIs may still change before 1.0. Try the bundled example or your own export on the [demo page](https://segnomusic.github.io/segno-player/).
+> **Status: early.** The core library (`@segnomusic/player/core`) and the `<segno-player>` web component work and are tested; their APIs may still change before 1.0. Try the bundled example or your own export on the [demo page](https://segnomusic.github.io/segno-player/). See the [roadmap](ROADMAP.md) for what's planned.
 
 ## Why Segno?
 
