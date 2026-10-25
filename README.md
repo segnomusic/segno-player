@@ -13,7 +13,7 @@ Web notation libraries draw the score themselves from MusicXML or similar, reflo
 ## What's in the box
 
 - **`@segnomusic/player/core`**: a dependency-free library that turns MuseScore's position files into a small _sync map_ and answers "what plays at time t". It has no DOM, so it runs in Node (at build time) and in the browser.
-- **`<segno-player>`**: a framework-free web component that shows the SVG pages, plays the audio and draws the markers. It works on any site, and its API follows the `<audio>` element.
+- **`@segnomusic/player`**: the `<segno-player>` web component that shows the SVG pages, plays the audio and draws the markers. It works on any site, and its API follows the `<audio>` element.
 - **`segno build-sync`** _(coming)_: a CLI to build sync maps ahead of time.
 
 Segno does not render, edit, transpose or convert scores.
@@ -58,7 +58,34 @@ What was verified, with MuseScore 4.7.5 (Linux build, headless):
 </segno-player>
 ```
 
-With a bundler, `import '@segnomusic/player/player'` defines the element. The modules are plain ES modules, so a CDN serves them as they are. Importing them where there is no DOM (server rendering) is harmless: the element is only defined in the browser.
+<!-- @decision(DL-032) -->
+
+With a bundler, `import '@segnomusic/player'` defines the element. Named exports and types come from the same entry point:
+
+```ts
+import { SegnoPlayer, type BarChangeDetail, type ScoreMode } from '@segnomusic/player';
+```
+
+For lazy loading, use `await import('@segnomusic/player')` when the player is needed. The modules are plain ES modules, so a CDN serves them as they are. Importing them where there is no DOM (server rendering) is harmless: the element is only defined in the browser.
+
+### Migrating to 0.3.0
+
+**Breaking change:** the `@segnomusic/player/player` subpath has been removed, without a compatibility alias. Replace it with the package root in static, dynamic, and type-only imports:
+
+```diff
+- import '@segnomusic/player/player';
++ import '@segnomusic/player';
+
+- await import('@segnomusic/player/player');
++ await import('@segnomusic/player');
+
+- import type { SegnoPlayer } from '@segnomusic/player/player';
++ import type { SegnoPlayer } from '@segnomusic/player';
+```
+
+`@segnomusic/player/core`, the `<segno-player>` element and its API, and the explicit CDN URL above are unchanged.
+
+### Player API
 
 The player takes the width it is given: in a layout that sizes elements to their content (an inline block, a flex row), give it a width or `flex: 1`.
 

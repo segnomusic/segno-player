@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-032 | Use the package root for the component and remove the player subpath in 0.3.0 | accepted | packaging, release |
 | DL-031 | Calibrate canvas zoom from engraved staff size | accepted | engraving-relative-zoom, canvas-viewport, segno-player |
 | DL-030 | Simplify the demo header framing | accepted | demo, design |
 | DL-029 | Localize controls and accessible descriptions in place during playback | accepted | player-localization, segno-player, accessibility |
