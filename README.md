@@ -68,6 +68,55 @@ The `mode` attribute (or the layout selector in the built-in controls) picks how
 
 Full score is always the default; the other views are opt-in.
 
+### Frameworks and TypeScript
+
+<!-- @decision(DL-005) @decision(DL-033) -->
+
+`<segno-player>` is a plain custom element, so it works in any framework once the module is imported on the client. The package exports `SegnoPlayerAttributes`, the type of its attributes, and `HTMLElementTagNameMap` already knows the element, so `document.querySelector('segno-player')` and `addEventListener('barchange', …)` are typed. JSX and templates need to be told about the tag. These snippets were checked against current React 19, Vue 3 and Svelte 5 types; put them in a `.d.ts` or `.ts` file your project includes.
+
+React (use a ref for `play()` and for listening to `barchange`):
+
+```ts
+import type { SegnoPlayer, SegnoPlayerAttributes } from '@segnomusic/player';
+import type { DetailedHTMLProps, HTMLAttributes } from 'react';
+
+declare module 'react' {
+  namespace JSX {
+    interface IntrinsicElements {
+      'segno-player': DetailedHTMLProps<HTMLAttributes<SegnoPlayer>, SegnoPlayer> & SegnoPlayerAttributes;
+    }
+  }
+}
+```
+
+Vue (also set `compilerOptions.isCustomElement: (tag) => tag === 'segno-player'` in the Vue plugin options):
+
+```ts
+import type { SegnoPlayerAttributes } from '@segnomusic/player';
+import type { DefineComponent } from 'vue';
+
+declare module 'vue' {
+  interface GlobalComponents {
+    'segno-player': DefineComponent<SegnoPlayerAttributes>;
+  }
+}
+```
+
+Svelte:
+
+```ts
+import type { SegnoPlayer, SegnoPlayerAttributes } from '@segnomusic/player';
+import type { HTMLAttributes } from 'svelte/elements';
+
+declare module 'svelte/elements' {
+  interface SvelteHTMLElements {
+    'segno-player': HTMLAttributes<SegnoPlayer> & SegnoPlayerAttributes;
+  }
+}
+```
+
+Angular needs no types, only `CUSTOM_ELEMENTS_SCHEMA` on the component or module that uses the tag.
+
 ## Exporting from MuseScore
 
 Segno needs a handful of files from your score:
