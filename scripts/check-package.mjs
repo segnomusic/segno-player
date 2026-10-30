@@ -2,11 +2,11 @@
 // Copyright (C) 2026 The Segno contributors
 // https://github.com/segnomusic/segno-player
 
-// @decision(DL-026) @decision(DL-032)
+// @decision(DL-026) @decision(DL-032) @decision(DL-034)
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,6 +35,7 @@ try {
     'dist/core/index.d.ts',
     'dist/player/index.js',
     'dist/player/index.d.ts',
+    'dist/cli/index.js',
     'LICENSE',
     'README.md',
     'package.json',
@@ -80,6 +81,16 @@ try {
     ],
     { cwd: consumer, stdio: 'inherit' },
   );
+  const segno = join(consumer, 'node_modules/.bin/segno');
+  assert.equal(execFileSync(segno, ['--version'], { encoding: 'utf8' }), `${metadata.version}\n`);
+  const demo = join(root, 'fixtures/nar-juldagsmorgon-glimmar/nar-juldagsmorgon-glimmar');
+  for (const suffix of ['.mpos', '.spos', '-1.svg']) copyFileSync(`${demo}${suffix}`, join(consumer, `song${suffix}`));
+  execFileSync(segno, ['build-sync', 'song'], { cwd: consumer, stdio: 'inherit' });
+  const built = JSON.parse(readFileSync(join(consumer, 'song.sync.json'), 'utf8'));
+  assert.equal(built.v, 1);
+  assert.equal(built.pages.length, 1);
+  assert.equal(built.bars.length, 13);
+  assert.equal(built.notes.length, 33);
   writeFileSync(
     join(consumer, 'imports.ts'),
     `

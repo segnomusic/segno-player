@@ -20,7 +20,7 @@ It is a slightly ambivalent player, though. Full pages are the default, but for 
 
 - **`@segnomusic/player/core`**: a dependency-free library that turns MuseScore's position files into a small _sync map_ and answers "what plays at time t". It has no DOM, so it runs in Node (at build time) and in the browser.
 - **`@segnomusic/player`**: the `<segno-player>` web component that shows the SVG pages, plays the audio and draws the markers. It works on any site, and its API follows the `<audio>` element.
-- **`segno build-sync`** _(coming)_: a CLI to build sync maps ahead of time.
+- **`segno build-sync`**: a command that builds the sync map ahead of time, so the browser doesn't have to. See [Prebuild the sync map](#5-prebuild-the-sync-map-optional).
 
 Segno does not render, edit, transpose or convert scores.
 
@@ -173,6 +173,26 @@ On Windows, `MuseScore4.exe` is a GUI program, so a terminal can return before t
 
 Put the files next to a page with the player on it, or try them on the [demo page](https://segnomusic.github.io/segno-player/). If the files don't fit together, the player still shows the pages and plays the audio, just without markers, and says why in the browser console.
 
+### 5. Prebuild the sync map (optional)
+
+<!-- @decision(DL-035) -->
+
+The player can read the position files and the SVG pages itself, as above. If your site has a build step, you can do that work once instead, and give the player a single small JSON file, the _sync map_:
+
+```sh
+npx @segnomusic/player build-sync song
+```
+
+This reads `song.mpos`, `song.spos` (when there is one) and the pages `song-1.svg`, `song-2.svg`, …, and writes `song.sync.json`. Then point the player at it in place of `positions` and `notes`:
+
+```html
+<segno-player pages="song-1.svg song-2.svg" audio="song.mp3" sync="song.sync.json" controls></segno-player>
+```
+
+With `@segnomusic/player` installed in your project, the command is also available as `segno build-sync` in your npm scripts. Options override what the name gives: `--positions`, `--notes`, `--no-notes`, `--page` (once per page, in order) and `-o` (`-o -` writes to stdout). `segno build-sync --help` lists them.
+
+The command is stricter than the player. If the files don't fit together, it stops and says which file and which export setting is the likely cause, instead of building a map without markers. That includes the note positions: pass `--no-notes` to build a map without the note cursor.
+
 ### When the files don't line up
 
 The files only belong together when they come from the same score and the same settings. These are the things to watch for:
@@ -250,7 +270,7 @@ Changing `player.lang`, its `lang` attribute, or an inherited ancestor language 
 
 ## Using the core
 
-If you want to build your own player, or build sync maps at build time, the core does the heavy lifting without any DOM:
+If you want to build your own player, or build sync maps in your own build scripts rather than with [`segno build-sync`](#5-prebuild-the-sync-map-optional), the core does the heavy lifting without any DOM:
 
 ```sh
 npm install @segnomusic/player

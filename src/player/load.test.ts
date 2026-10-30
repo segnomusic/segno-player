@@ -47,6 +47,20 @@ describe('checkSyncMap', () => {
     const withNotes = { v: 1, bars, events: [[0, 0]], notes: [[0, 0.2, 0.1, 0.1]], noteEvents: [[0, 0]] };
     expect(checkSyncMap(withNotes)).toBe(withNotes);
   });
+
+  test('checks the pages when a map lists them', () => {
+    const bars = [[0, 0.1, 0.1, 0.2, 0.1]];
+    const withPages = { v: 1, pages: [[3, 4]], bars, events: [[0, 0]] };
+    expect(checkSyncMap(withPages)).toBe(withPages);
+    expect(() => checkSyncMap({ v: 1, pages: {}, bars, events: [] })).toThrow('[w, h] arrays of 2 positive numbers');
+    expect(() => checkSyncMap({ v: 1, pages: [[3]], bars, events: [] })).toThrow('[w, h] arrays');
+    expect(() => checkSyncMap({ v: 1, pages: [[0, 4]], bars, events: [] })).toThrow('[w, h] arrays');
+    expect(() => checkSyncMap({ v: 1, pages: [], bars, events: [] })).toThrow("positions on pages it doesn't list");
+    const notes = { notes: [[1, 0.2, 0.1, 0.1]], noteEvents: [[0, 0]] };
+    expect(() => checkSyncMap({ v: 1, pages: [[3, 4]], bars, events: [], ...notes })).toThrow(
+      "positions on pages it doesn't list (1 pages)",
+    );
+  });
 });
 
 describe('loadSync', () => {
@@ -57,7 +71,7 @@ describe('loadSync', () => {
     );
     expect(result.sync?.bars).toHaveLength(13);
     expect(result.sync?.notes).toHaveLength(33);
-    expect(result.pageSizes).toEqual([{ w: 9921.26, h: 14031.5 }]);
+    expect(result.sync?.pages).toEqual([[9921.26, 14031.5]]);
     expect(result.warnings).toEqual([]);
   });
 

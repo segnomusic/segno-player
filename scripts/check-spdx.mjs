@@ -2,8 +2,8 @@
 // Copyright (C) 2026 The Segno contributors
 // https://github.com/segnomusic/segno-player
 
-// Checks that every source file starts with the licence's SPDX header.
-// @decision(DL-007)
+// Checks that every source file starts with the licence's SPDX header (after a shebang, in the CLI's bin).
+// @decision(DL-007) @decision(DL-034)
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -14,9 +14,14 @@ const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclud
 })
   .split('\n')
   .filter((f) => f && !f.startsWith('.claude/') && !f.startsWith('.agents/'));
-const missing = files.filter((f) => !readFileSync(f, 'utf8').startsWith(header));
+const missing = files.filter(
+  (f) =>
+    !readFileSync(f, 'utf8')
+      .replace(/^#!.*\n/, '')
+      .startsWith(header),
+);
 if (missing.length) {
-  console.error(`Missing "${header}" on the first line:\n${missing.join('\n')}`);
+  console.error(`Missing "${header}" on the first line (or the one after a shebang):\n${missing.join('\n')}`);
   process.exit(1);
 }
 console.log(`ok: ${files.length} source files carry the SPDX header`);

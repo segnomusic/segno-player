@@ -7,7 +7,7 @@ Segno's scope is set by [DL-001](decisions/records/DL-001.md): it plays a score'
 ## Toward 1.0
 
 - **Stabilise the API.** The core library and `<segno-player>` work and are tested, but their APIs may still change. Reaching 1.0 means freezing the element's attributes, properties and events, and the sync map format ([DL-003](decisions/records/DL-003.md)).
-- **`segno build-sync`.** A CLI that builds sync maps ahead of time (at build time, in Node), so sites don't parse MuseScore's position files in the browser.
+- **More commands for the `segno` CLI.** `segno build-sync` builds sync maps ahead of time ([DL-035](decisions/records/DL-035.md)). A command that writes and runs MuseScore's export job is a candidate; it needs its own decision.
 - **More player languages.** English and Swedish are built in ([DL-027](decisions/records/DL-027.md)). Further languages must satisfy the same typed dictionary schema.
 
 ## Later

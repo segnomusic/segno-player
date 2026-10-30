@@ -83,6 +83,17 @@ describe('pages', () => {
     expect(query(player, '.page').style.aspectRatio).toBe('9921.26 / 14031.5');
   });
 
+  test('takes the pages’ aspect ratio from a prebuilt map', async () => {
+    const player = mount({ pages: blankPage(), audio: silentAudio(5) });
+    player.sync = { v: 1, pages: [[3, 4]], bars: [[0, 0.1, 0.2, 0.3, 0.1]], events: [[0, 0]] };
+    await next(player, 'canplay');
+    expect(query(player, '.page').style.aspectRatio).toBe('3 / 4');
+    // A map without them clears them
+    player.sync = { v: 1, bars: [[0, 0.1, 0.2, 0.3, 0.1]], events: [[0, 0]] };
+    await next(player, 'canplay');
+    expect(query(player, '.page').style.aspectRatio).toBe('');
+  });
+
   test('defines the element once', async () => {
     expect(customElements.get('segno-player')).toBe(SegnoPlayer);
     await import('./index.js');
@@ -187,6 +198,23 @@ describe('falling back to plain playback', () => {
     await next(player, 'canplay');
     expect(player.sync).toBeNull();
     expect(warn).toHaveBeenCalledWith(expect.stringMatching(/positions on pages the player wasn't given/));
+  });
+
+  test('when a sync map was built for another number of pages', async () => {
+    const player = mount({ pages: blankPage(), audio: silentAudio(5) });
+    player.sync = {
+      v: 1,
+      pages: [
+        [3, 4],
+        [3, 4],
+      ],
+      bars: [[0, 0.1, 0.2, 0.3, 0.1]],
+      events: [[0, 0]],
+    };
+    await next(player, 'canplay');
+    expect(player.sync).toBeNull();
+    expect(query(player, '.page').style.aspectRatio).toBe('');
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/built for 2 pages, but the player was given 1/));
   });
 
   test('when a sync map is malformed, and canplay still fires', async () => {

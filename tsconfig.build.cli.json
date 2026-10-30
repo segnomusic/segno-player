@@ -1,0 +1,13 @@
+// The CLI's build: like the core's, with Node's types. It is the only part of the package that uses Node APIs, and
+// not a library, so it has no declarations.
+// @decision(DL-034)
+{
+  "extends": "./tsconfig.build.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["src/cli"],
+  "exclude": ["src/**/*.test.ts", "src/**/test-*.ts"]
+}

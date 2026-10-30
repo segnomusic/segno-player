@@ -35,6 +35,7 @@ The coverage floor only goes up: if your change raises coverage, you may raise t
 
 - TypeScript, ESM only. No `any`.
 - The core (`src/core`) has no runtime dependencies and uses no DOM APIs, so it runs in Node and in browsers. Keep it that way.
+- The CLI (`src/cli`) is the only code that uses Node APIs. It has no runtime dependencies either, and uses the core only through `src/core/index.ts`.
 - New source files start with the SPDX header:
 
   ```ts

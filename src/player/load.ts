@@ -2,7 +2,7 @@
 // Copyright (C) 2026 The Segno contributors
 // https://github.com/segnomusic/segno-player
 
-import { buildSync, type PageSize, readViewBox, type SyncMap } from '../core/index.js';
+import { buildSync, readViewBox, type SyncMap } from '../core/index.js';
 
 /** The player's file inputs, as given in its attributes (URLs relative to the document) */
 export interface SyncInputs {
@@ -15,8 +15,6 @@ export interface SyncInputs {
 export interface LoadResult {
   /** null when there is nothing to build a sync map from */
   sync: SyncMap | null;
-  /** The pages' sizes, when the SVGs were read */
-  pageSizes: PageSize[];
   /** Problems that only cost the note cursor */
   warnings: string[];
 }
@@ -33,7 +31,12 @@ const isNumbers = (entry: unknown, length: number): entry is number[] =>
   Array.isArray(entry) && entry.length === length && entry.every(Number.isFinite);
 
 // Positions as [page, ...fractions] and events as [index, ms] into them, in time order
-function checkPositions(positions: unknown, events: unknown, size: number, what: string): void {
+function checkPositions(
+  positions: unknown,
+  events: unknown,
+  size: number,
+  what: string,
+): asserts positions is number[][] {
   if (!Array.isArray(positions) || !Array.isArray(events)) throw new Error(`A sync map needs ${what} and their events`);
   if (!positions.every((p) => isNumbers(p, size) && isIndex(p[0], Number.POSITIVE_INFINITY))) {
     throw new Error(`The sync map's ${what} must be [page, …] arrays of ${size} numbers`);
@@ -49,7 +52,7 @@ function checkPositions(positions: unknown, events: unknown, size: number, what:
 
 /**
  * Checks that a value is a sync map this version of Segno can read: its version, and the shape of its entries.
- * @decision(DL-003)
+ * @decision(DL-003) @decision(DL-036)
  * @throws when it isn't
  */
 export function checkSyncMap(value: unknown): SyncMap {
@@ -58,6 +61,15 @@ export function checkSyncMap(value: unknown): SyncMap {
   if (map.v !== 1) throw new Error(`Unknown sync map version ${String(map.v)}; this version of Segno reads version 1`);
   checkPositions(map.bars, map.events, 5, 'bars');
   if (map.notes !== undefined || map.noteEvents !== undefined) checkPositions(map.notes, map.noteEvents, 4, 'notes');
+  if (map.pages !== undefined) {
+    if (!Array.isArray(map.pages) || !map.pages.every((p) => isNumbers(p, 2) && p.every((n) => n > 0))) {
+      throw new Error("The sync map's pages must be [w, h] arrays of 2 positive numbers");
+    }
+    const count = map.pages.length;
+    if ([...map.bars, ...(map.notes ?? [])].some(([page]) => page >= count)) {
+      throw new Error(`The sync map has positions on pages it doesn't list (${count} pages)`);
+    }
+  }
   return map as SyncMap;
 }
 
@@ -70,9 +82,9 @@ export function checkSyncMap(value: unknown): SyncMap {
 export async function loadSync(inputs: SyncInputs, signal: AbortSignal, base = document.baseURI): Promise<LoadResult> {
   if (inputs.sync) {
     const text = await fetchText(inputs.sync, base, signal);
-    return { sync: checkSyncMap(JSON.parse(text)), pageSizes: [], warnings: [] };
+    return { sync: checkSyncMap(JSON.parse(text)), warnings: [] };
   }
-  if (!inputs.positions) return { sync: null, pageSizes: [], warnings: [] };
+  if (!inputs.positions) return { sync: null, warnings: [] };
   const warnings: string[] = [];
   const [mpos, spos, svgs] = await Promise.all([
     fetchText(inputs.positions, base, signal),
@@ -88,13 +100,13 @@ export async function loadSync(inputs: SyncInputs, signal: AbortSignal, base = d
   const pageSizes = svgs.map(readViewBox);
   if (spos) {
     try {
-      return { sync: buildSync(mpos, pageSizes, { sposXml: spos }), pageSizes, warnings };
+      return { sync: buildSync(mpos, pageSizes, { sposXml: spos }), warnings };
     } catch (error) {
       // The bars may still fit: only the notes are dropped if they do
       const sync = buildSync(mpos, pageSizes);
       warnings.push(`No note cursor: ${String(error)}`);
-      return { sync, pageSizes, warnings };
+      return { sync, warnings };
     }
   }
-  return { sync: buildSync(mpos, pageSizes), pageSizes, warnings };
+  return { sync: buildSync(mpos, pageSizes), warnings };
 }
