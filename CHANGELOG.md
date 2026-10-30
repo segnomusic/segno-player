@@ -1,5 +1,12 @@
 # @segnomusic/player
 
+## 0.4.0
+
+### Minor Changes
+
+- 8f7dbd0: Let a host play the score through its own engine, for example a synthesizer playing MuseScore's MIDI, by setting `player.media` to an object shaped like a media element (the exported `SegnoMedia` type). Setting it while playing keeps the position, the tempo and the playing state, and `media = null` returns to the `audio` file. Add `tempo-min`, `tempo-max` and `tempo-step` (percent, defaults 50, 150 and 10) for the tempo buttons' range, and `tempo-base` to show the tempo as "♩ = N". With the built-in audio, `playbackRate` is now kept within 0.25–2, which every browser can play, and the pitch is also kept on iOS before 17.2.
+- 55adf01: Add the `segno` command line, with `segno build-sync`, which builds a score's sync map ahead of time from its MuseScore export: `npx @segnomusic/player build-sync song` reads `song.mpos`, `song.spos` and `song-1.svg`, `song-2.svg`, … and writes `song.sync.json` for `<segno-player sync="…">`. Sync maps now carry their pages' sizes (an optional `pages` field, still format version 1), so a player given a prebuilt map keeps each page's shape before its image loads, and rejects a map built for a different number of pages.
+
 ## 0.3.1
 
 ### Patch Changes
