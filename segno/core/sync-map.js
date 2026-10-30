@@ -54,6 +54,8 @@ export function buildSync(mposXml, pages, options = {}) {
     const mpos = parsePositions(mposXml);
     const sync = {
         v: 1,
+        // @decision(DL-036)
+        pages: pages.map(({ w, h }) => [w, h]),
         bars: toPageFractions(mpos.elements, pages, unitsPerSvgUnit, 'Bar').map(([page, x, y, w, h]) => [page, round(x), round(y), round(w), round(h)]),
         events: toTimedEvents(mpos.events, mpos.elements, 'Bar'),
     };

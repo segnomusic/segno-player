@@ -232,6 +232,11 @@ export const css = /* css */ `
   text-align: center;
   font-weight: 700;
 }
+.tempo-bpm {
+  margin-left: 0.25rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 .mode,
 .follow {
   display: flex;
@@ -314,7 +319,8 @@ export const css = /* css */ `
   }
 }
 
-.live {
+.live,
+.visually-hidden {
   position: absolute;
   width: 1px;
   height: 1px;
