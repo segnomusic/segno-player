@@ -35,6 +35,14 @@ describe('buildSync', () => {
     expect(h).toBeGreaterThan(0);
   });
 
+  test('lists the pages’ sizes, in page order', () => {
+    expect(buildSync(volta.mpos, volta.pages).pages).toEqual([[A4.w, A4.h]]);
+    expect(buildSync(volta.mpos, [A4, { w: 100, h: 200 }]).pages).toEqual([
+      [A4.w, A4.h],
+      [100, 200],
+    ]);
+  });
+
   test('has no notes without an .spos file', () => {
     const sync = buildSync(volta.mpos, volta.pages);
     expect(sync).not.toHaveProperty('notes');

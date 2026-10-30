@@ -17,6 +17,7 @@ export {
   buildSync,
   MPOS_UNITS_PER_SVG_UNIT,
   type Note,
+  type Page,
   type SyncMap,
   type TimedEvent,
 } from './sync-map.js';

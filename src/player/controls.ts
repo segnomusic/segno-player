@@ -4,6 +4,7 @@
 
 import { formatTime } from './format.js';
 import { type Language, messages } from './localization.js';
+import type { TempoRange } from './media.js';
 import type { ScoreMode } from './mode.js';
 
 /** What the controls need from the player: the media-element part of its API */
@@ -25,13 +26,17 @@ const icons = {
   restart: 'M3 3h2v10H3zM13 3v10L6 8z',
   settings: 'M2 3h7v2H2zM11 3h3v2h-3zM8 2h3v4H8zM2 11h3v2H2zM7 11h7v2H7zM5 10h3v4H5z',
 };
-const TEMPO_MIN = 50;
-const TEMPO_MAX = 150;
-const TEMPO_STEP = 10;
+/** The tempo stepper's settings, from the player's attributes */
+export interface TempoSettings extends TempoRange {
+  /** Quarter notes a minute at 100%, or null to show only the percentage */
+  base: number | null;
+}
 
 export interface PlayerControls {
   root: HTMLElement;
   setLanguage(language: Language): void;
+  /** Shows the player's current state, after its media or the tempo settings changed */
+  refresh(): void;
 }
 
 // An element with a class name, a part and some properties
@@ -49,9 +54,9 @@ function element<K extends keyof HTMLElementTagNameMap>(
 
 /**
  * The built-in controls: playback and seeking, with tempo and follow settings that collapse on narrow players.
- * @decision(DL-016) @decision(DL-024) @decision(DL-029)
+ * @decision(DL-016) @decision(DL-024) @decision(DL-029) @decision(DL-038)
  */
-export function createControls(player: Playable): PlayerControls {
+export function createControls(player: Playable, tempoSettings: () => TempoSettings): PlayerControls {
   let text = messages.en;
   const bar = element('div', 'controls', 'controls');
   bar.setAttribute('role', 'group');
@@ -128,13 +133,22 @@ export function createControls(player: Playable): PlayerControls {
   const faster = element('button', 'control-button', 'tempo-increase', { type: 'button', textContent: '+' });
   const rate = element('span', 'tempo-value', 'tempo-value');
   rate.setAttribute('aria-live', 'polite');
-  const stepTempo = (step: number): void => {
-    const percent = Math.round(player.playbackRate * 100);
-    player.playbackRate = Math.min(TEMPO_MAX, Math.max(TEMPO_MIN, percent + step)) / 100;
+  const percentText = document.createTextNode('');
+  // The quarter-note tempo: read out with the percentage, shown beside the buttons
+  const bpmText = document.createElement('span');
+  bpmText.className = 'visually-hidden';
+  rate.append(percentText, bpmText);
+  const bpm = element('span', 'tempo-bpm', 'tempo-bpm');
+  bpm.setAttribute('aria-hidden', 'true');
+  const stepTempo = (direction: number): void => {
+    const { min, max, step } = tempoSettings();
+    // To a hundredth of a percent, so that fractional steps stay on their grid
+    const percent = Math.round(player.playbackRate * 10_000) / 100;
+    player.playbackRate = Math.min(max, Math.max(min, percent + direction * step)) / 100;
   };
-  slower.addEventListener('click', () => stepTempo(-TEMPO_STEP));
-  faster.addEventListener('click', () => stepTempo(TEMPO_STEP));
-  tempo.append(tempoLabel, slower, rate, faster);
+  slower.addEventListener('click', () => stepTempo(-1));
+  faster.addEventListener('click', () => stepTempo(1));
+  tempo.append(tempoLabel, slower, rate, faster, bpm);
 
   const followLabel = element('label', 'follow', 'follow');
   const follow = element('input', '', 'follow-input', { type: 'checkbox' });
@@ -162,10 +176,15 @@ export function createControls(player: Playable): PlayerControls {
     play.disabled = restart.disabled = seek.disabled = duration <= 0;
   };
   const showRate = (): void => {
+    const { min, max, base } = tempoSettings();
     const percent = Math.round(player.playbackRate * 100);
-    rate.textContent = text.tempoPercent(percent);
-    slower.disabled = percent <= TEMPO_MIN;
-    faster.disabled = percent >= TEMPO_MAX;
+    percentText.data = text.tempoPercent(percent);
+    slower.disabled = percent <= min;
+    faster.disabled = percent >= max;
+    const quarters = base === null ? 0 : Math.round(base * player.playbackRate);
+    bpm.hidden = base === null;
+    bpm.textContent = `♩ = ${quarters}`;
+    bpmText.textContent = base === null ? '' : `, ${text.tempoQuarters(quarters)}`;
   };
   const showFollow = (): void => {
     follow.checked = player.follow;
@@ -192,6 +211,9 @@ export function createControls(player: Playable): PlayerControls {
     slower.setAttribute('aria-label', text.slower);
     faster.setAttribute('aria-label', text.faster);
     followText.textContent = text.followScore;
+    refresh();
+  };
+  const refresh = (): void => {
     showState();
     showTime();
     showRate();
@@ -201,5 +223,5 @@ export function createControls(player: Playable): PlayerControls {
   showMode();
 
   bar.append(play, restart, progress, settingsButton, settings);
-  return { root: bar, setLanguage };
+  return { root: bar, setLanguage, refresh };
 }

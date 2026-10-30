@@ -11,15 +11,20 @@ export type Bar = [page: number, x: number, y: number, w: number, h: number];
 /** A note or rest position: `[page, x, y, h]`, x at the noteheads' centre, y and h the system. */
 export type Note = [page: number, x: number, y: number, h: number];
 
+/** A page's size: `[w, h]` from its SVG's `viewBox`, in its own units. Only the ratio is meaningful. */
+export type Page = [w: number, h: number];
+
 /** `[index, ms]`: the bar (or note) at `index` starts to play at `ms` */
 export type TimedEvent = [index: number, ms: number];
 
 /**
  * The sync map, format version 1: everything a player needs to follow the audio on the pages.
- * @decision(DL-003)
+ * @decision(DL-003) @decision(DL-036)
  */
 export interface SyncMap {
   v: 1;
+  /** One per page, in page order; absent in maps from older or other producers */
+  pages?: Page[];
   /** One per bar, in score order */
   bars: Bar[];
   /** In playback order; indices into `bars` */
@@ -94,6 +99,8 @@ export function buildSync(mposXml: string, pages: PageSize[], options: BuildSync
   const mpos = parsePositions(mposXml);
   const sync: SyncMap = {
     v: 1,
+    // @decision(DL-036)
+    pages: pages.map(({ w, h }): Page => [w, h]),
     bars: toPageFractions(mpos.elements, pages, unitsPerSvgUnit, 'Bar').map(
       ([page, x, y, w, h]): Bar => [page, round(x), round(y), round(w), round(h)],
     ),

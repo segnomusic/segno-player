@@ -8,7 +8,7 @@ import { defineConfig } from 'vitest/config';
 // CHROMIUM_PATH points Playwright at an installed Chromium instead of its own download
 const chromium = process.env.CHROMIUM_PATH;
 
-// @decision(DL-011) @decision(DL-019)
+// @decision(DL-011) @decision(DL-019) @decision(DL-034)
 export default defineConfig({
   test: {
     coverage: {
@@ -23,6 +23,10 @@ export default defineConfig({
       {
         extends: true,
         test: { name: 'core', include: ['src/core/**/*.test.ts'], environment: 'node' },
+      },
+      {
+        extends: true,
+        test: { name: 'cli', include: ['src/cli/**/*.test.ts'], environment: 'node' },
       },
       {
         extends: true,

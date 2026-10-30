@@ -19,6 +19,9 @@
     "musescore"
   ],
   "type": "module",
+  "bin": {
+    "segno": "./dist/cli/index.js"
+  },
   "sideEffects": [
     "./dist/player/index.js",
     "./src/player/index.ts"
@@ -36,6 +39,7 @@
   },
   "files": [
     "dist",
+    "src/cli",
     "src/core",
     "src/player",
     "!src/**/*.test.ts",
@@ -45,7 +49,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && tsc -p tsconfig.build.player.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && tsc -p tsconfig.build.player.json && tsc -p tsconfig.build.cli.json",
     "typecheck": "tsc --noEmit",
     "lint": "biome ci .",
     "lint:fix": "biome check --write .",

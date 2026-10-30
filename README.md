@@ -20,7 +20,7 @@ It is a slightly ambivalent player, though. Full pages are the default, but for 
 
 - **`@segnomusic/player/core`**: a dependency-free library that turns MuseScore's position files into a small _sync map_ and answers "what plays at time t". It has no DOM, so it runs in Node (at build time) and in the browser.
 - **`@segnomusic/player`**: the `<segno-player>` web component that shows the SVG pages, plays the audio and draws the markers. It works on any site, and its API follows the `<audio>` element.
-- **`segno build-sync`** _(coming)_: a CLI to build sync maps ahead of time.
+- **`segno build-sync`**: a command that builds the sync map ahead of time, so the browser doesn't have to. See [Prebuild the sync map](#5-prebuild-the-sync-map-optional).
 
 Segno does not render, edit, transpose or convert scores.
 
@@ -173,6 +173,26 @@ On Windows, `MuseScore4.exe` is a GUI program, so a terminal can return before t
 
 Put the files next to a page with the player on it, or try them on the [demo page](https://segnomusic.github.io/segno-player/). If the files don't fit together, the player still shows the pages and plays the audio, just without markers, and says why in the browser console.
 
+### 5. Prebuild the sync map (optional)
+
+<!-- @decision(DL-035) -->
+
+The player can read the position files and the SVG pages itself, as above. If your site has a build step, you can do that work once instead, and give the player a single small JSON file, the _sync map_:
+
+```sh
+npx @segnomusic/player build-sync song
+```
+
+This reads `song.mpos`, `song.spos` (when there is one) and the pages `song-1.svg`, `song-2.svg`, …, and writes `song.sync.json`. Then point the player at it in place of `positions` and `notes`:
+
+```html
+<segno-player pages="song-1.svg song-2.svg" audio="song.mp3" sync="song.sync.json" controls></segno-player>
+```
+
+With `@segnomusic/player` installed in your project, the command is also available as `segno build-sync` in your npm scripts. Options override what the name gives: `--positions`, `--notes`, `--no-notes`, `--page` (once per page, in order) and `-o` (`-o -` writes to stdout). `segno build-sync --help` lists them.
+
+The command is stricter than the player. If the files don't fit together, it stops and says which file and which export setting is the likely cause, instead of building a map without markers. That includes the note positions: pass `--no-notes` to build a map without the note cursor.
+
 ### When the files don't line up
 
 The files only belong together when they come from the same score and the same settings. These are the things to watch for:
@@ -202,16 +222,137 @@ The player takes the width it is given: in a layout that sizes elements to their
 | `lang`                                   | Player language (`en` or `sv`); inherited from the surrounding page when omitted                |
 | `bar-lead`, `note-lead`                  | Timing offsets in ms for the bar marker and note cursor (default 15 and −20; positive is early) |
 | `note-cursor="off"`, `bar-change="jump"` | No note cursor; switch bars at once instead of crossfading                                      |
+| `tempo-min`, `tempo-max`, `tempo-step`   | The tempo buttons' range and step, in percent (default 50, 150 and 10)                          |
+| `tempo-base`                             | Quarter notes a minute at 100%: the tempo controls also show "♩ = N"                            |
 
-The playback API follows `HTMLMediaElement`: `play()`, `pause()`, `currentTime` (seconds), `duration`, `playbackRate` (pitch preserved), `paused`, `error`, and the events `play`, `pause`, `playing`, `waiting`, `seeking`, `seeked`, `timeupdate`, `ratechange`, `durationchange`, `loadedmetadata`, `emptied`, `ended`, `error` and `canplay` (once the audio can play and the markers are ready). On top of that: `currentBar`, `playBar(index)` and the `barchange` event (`detail: { bar, event }`). `sync` holds the sync map in use, or `null` while there are no markers.
+The playback API follows `HTMLMediaElement`: `play()`, `pause()`, `currentTime` (seconds), `duration`, `playbackRate` (pitch preserved; 0.25–2 with the built-in audio), `paused`, `error`, and the events `play`, `pause`, `playing`, `waiting`, `seeking`, `seeked`, `timeupdate`, `ratechange`, `durationchange`, `loadedmetadata`, `emptied`, `ended`, `error` and `canplay` (once the audio can play and the markers are ready). On top of that: `currentBar`, `playBar(index)` and the `barchange` event (`detail: { bar, event }`). `sync` holds the sync map in use, or `null` while there are no markers. `media` lets a host play the score through its own engine instead of the `audio` file: see [Playing through a host's media](#playing-through-a-hosts-media).
 
 The `mode` property reflects the `mode` attribute; `resolvedMode` reports the view on screen, and `modechange` reports both as `detail: { mode, resolvedMode }`. Full score is always the default. Two-system mode crops the original engraving around pairs of systems; reflow recombines whole engraved bar regions into two prepared rows without moving individual symbols. `auto` chooses full score at a player width of 768px or more and two-system below it. The built-in layout selector and external code share the same property, so the latest selection wins. Canvas assets load on demand and fall back to full pages if they cannot be rendered.
 
-The built-in tempo buttons adjust playback from 50–150% in steps of 10%. Back to beginning pauses and resets the score. On narrow players, a settings button reveals the score-layout selector, tempo and the "Follow score" checkbox below the playback controls. The boolean `follow` property reflects the `follow` attribute; `followchange` fires when it is switched, including by the checkbox. Following scrolls the score; turning it off leaves the markers running.
+The built-in tempo buttons adjust playback from 50–150% in steps of 10%, or within `tempo-min` and `tempo-max` in steps of `tempo-step`. The range only bounds the buttons: a rate set through `playbackRate` is shown as it is, and the next button press brings it into range. With the built-in audio, the range stays within 25–200%, which every browser can play. Back to beginning pauses and resets the score. On narrow players, a settings button reveals the score-layout selector, tempo and the "Follow score" checkbox below the playback controls. The boolean `follow` property reflects the `follow` attribute; `followchange` fires when it is switched, including by the checkbox. Following scrolls the score; turning it off leaves the markers running.
 
 Clicking a bar plays from it. On the focused score, Space or K plays and pauses, ← and → move between bars, and Home goes to the start.
 
 Theme it with `--segno-*` custom properties, `::part()` and container queries: see [docs/theming.md](docs/theming.md).
+
+### Playing through a host's media
+
+<!-- @decision(DL-037) -->
+
+By default the player plays the `audio` file with a built-in `<audio>` element. A site can give it another engine instead, for example a synthesizer that plays the score's MIDI and changes tempo without stretching the sound. Segno itself never contains a synthesizer: the site provides an object that behaves like the part of a media element the player uses, a `SegnoMedia`:
+
+```ts
+interface SegnoMedia extends EventTarget {
+  currentTime: number; // seconds in the score's timeline; setting it seeks
+  readonly duration: number; // seconds; NaN until known
+  readonly paused: boolean;
+  readonly ended: boolean;
+  playbackRate: number; // 1 is the score's own tempo
+  defaultPlaybackRate: number;
+  readonly error: MediaError | null;
+  play(): Promise<void>;
+  pause(): void;
+  // Fires play, pause, playing, waiting, seeking, seeked, timeupdate, ratechange, durationchange,
+  // loadedmetadata, emptied, ended, error and canplay, as a media element does.
+}
+```
+
+An `<audio>` element is a `SegnoMedia`. Set it on the `media` property, and set `null` to go back to the built-in audio:
+
+```js
+import '@segnomusic/player';
+
+const player = document.querySelector('segno-player');
+const midi = new MidiMedia(); // the site's own class, implementing SegnoMedia
+midi.addEventListener('canplay', () => {
+  player.media = midi; // keeps the place, the tempo, and whether it was playing
+});
+midi.addEventListener('error', () => {
+  player.media = null; // back to the audio file
+});
+midi.load(engineReady, scoreSeconds); // the site's own loading
+```
+
+A minimal adapter keeps its own clock and moves it as its engine plays. Its `duration` must be known by the time it fires `canplay`, or the built-in controls stay disabled:
+
+```js
+class MidiMedia extends EventTarget {
+  #start = 0; // where the clock was when it last started, in seconds
+  #startedAt = 0; // performance.now() then
+  #rate = 1;
+  paused = true;
+  ended = false;
+  duration = Number.NaN;
+  defaultPlaybackRate = 1;
+  error = null;
+
+  get currentTime() {
+    return this.paused ? this.#start : this.#start + ((performance.now() - this.#startedAt) / 1000) * this.#rate;
+  }
+  set currentTime(seconds) {
+    this.#start = seconds;
+    this.#startedAt = performance.now();
+    // …move the engine to `seconds`…
+    this.#fire('seeked');
+  }
+  get playbackRate() {
+    return this.#rate;
+  }
+  set playbackRate(rate) {
+    this.#start = this.currentTime;
+    this.#startedAt = performance.now();
+    this.#rate = rate;
+    // …change the engine's tempo…
+    this.#fire('ratechange');
+  }
+  play() {
+    // Called within the listener's click or key press: resume an AudioContext here, before any await
+    if (this.paused) {
+      this.#startedAt = performance.now();
+      this.paused = false;
+      // …start the engine at this.#start…
+      this.#fire('play');
+      this.#fire('playing');
+    }
+    return Promise.resolve();
+  }
+  pause() {
+    if (this.paused) return;
+    this.#start = this.currentTime;
+    this.paused = true;
+    // …stop the engine…
+    this.#fire('pause');
+  }
+  async load(engineReady, seconds) {
+    try {
+      await engineReady; // …the site's synthesizer and sound bank…
+    } catch {
+      this.error = { code: 4, message: 'The synthesizer failed to load' };
+      this.#fire('error');
+      return;
+    }
+    this.duration = seconds;
+    this.#fire('durationchange');
+    this.#fire('loadedmetadata');
+    this.#fire('canplay');
+  }
+  #fire(type) {
+    this.dispatchEvent(new Event(type));
+  }
+}
+```
+
+A real adapter also stops its clock at `duration`, sets `ended` and fires `ended`. `MediaError` has no constructor, so in TypeScript an adapter's `error` is a plain object cast to it (`{ code, message } as MediaError`).
+
+A few things to know:
+- **Times are the score's.** The media's `currentTime` must follow the sync map's timeline, the same as the audio file. MuseScore's MIDI of the same score does.
+- **The markers read `currentTime` every frame** while playing, so a media can fire `timeupdate` only a few times a second.
+- **Swapping keeps the place.** Setting `media` while playing pauses the old media, moves the new one to the same time and rate, and plays it. Events from the old one are no longer re-dispatched. The player fires `canplay` again once the new media can play, as it does for a new `audio` file.
+- **`play()` is called within the user's gesture** from the built-in controls, the keyboard shortcuts and clicks on bars, so an `AudioContext` can resume inside it (iOS needs that).
+- **The `audio` attribute is ignored while a media is set.** The built-in audio keeps the file it had, paused, so going back with `media = null` is instant once that file has loaded. A change to `audio` in the meantime applies when the media is cleared.
+- **Removing the player** pauses its media and stops listening to it. Putting the player back listens again, so one media can outlive the player it was given to.
+- **Errors** are re-dispatched as `error` events, and `player.error` is the media's. Falling back is up to the site.
+- **The tempo range** from `tempo-min` and `tempo-max` applies in full: only the built-in audio is held to 25–200%.
 
 ### Language
 
@@ -250,7 +391,7 @@ Changing `player.lang`, its `lang` attribute, or an inherited ancestor language 
 
 ## Using the core
 
-If you want to build your own player, or build sync maps at build time, the core does the heavy lifting without any DOM:
+If you want to build your own player, or build sync maps in your own build scripts rather than with [`segno build-sync`](#5-prebuild-the-sync-map-optional), the core does the heavy lifting without any DOM:
 
 ```sh
 npm install @segnomusic/player

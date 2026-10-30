@@ -23,6 +23,7 @@ export interface Messages {
   followScore: string;
   seekPosition(now: string, total: string): string;
   tempoPercent(percent: number): string;
+  tempoQuarters(quarters: number): string;
   pageDescription(page: number, total: number, title?: string): string;
   zoomedScore(title?: string): string;
   barPosition(bar: number, total: number): string;
@@ -45,6 +46,7 @@ export const messages: Record<Language, Messages> = {
     followScore: 'Follow score',
     seekPosition: (now, total) => `${now} of ${total}`,
     tempoPercent: (percent) => `${percent}%`,
+    tempoQuarters: (quarters) => `${quarters} quarter notes per minute`,
     pageDescription: (page, total, title) =>
       title ? `${title}, page ${page} of ${total}` : `Page ${page} of ${total}`,
     zoomedScore: (title) => (title ? `${title}, zoomed score` : 'Zoomed score'),
@@ -66,6 +68,7 @@ export const messages: Record<Language, Messages> = {
     followScore: 'Följ noterna',
     seekPosition: (now, total) => `${now} av ${total}`,
     tempoPercent: (percent) => `${percent}\u00a0%`,
+    tempoQuarters: (quarters) => `${quarters} fjärdedelar per minut`,
     pageDescription: (page, total, title) =>
       title ? `${title}, sida ${page} av ${total}` : `Sida ${page} av ${total}`,
     zoomedScore: (title) => (title ? `${title}, inzoomad notbild` : 'Inzoomad notbild'),
