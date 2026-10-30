@@ -60,3 +60,56 @@ export function revokeAll(): void {
 /** Resolves with the next event of a type on a target */
 export const next = (target: EventTarget, type: string): Promise<Event> =>
   new Promise((resolve) => target.addEventListener(type, resolve, { once: true }));
+
+/** A host's media for the tests: a clock that moves only when told to, and a count of `play()` calls */
+export class FakeMedia extends EventTarget {
+  #time = 0;
+  #rate = 1;
+  duration: number;
+  paused = true;
+  ended = false;
+  defaultPlaybackRate = 1;
+  error: MediaError | null = null;
+  plays = 0;
+
+  constructor(duration = 30) {
+    super();
+    this.duration = duration;
+  }
+  get currentTime(): number {
+    return this.#time;
+  }
+  set currentTime(seconds: number) {
+    this.#time = seconds;
+    this.fire('seeking');
+    this.fire('seeked');
+  }
+  get playbackRate(): number {
+    return this.#rate;
+  }
+  set playbackRate(rate: number) {
+    this.#rate = rate;
+    this.fire('ratechange');
+  }
+  /** Moves the clock as playback does: without seeking or any event */
+  tick(seconds: number): void {
+    this.#time = seconds;
+  }
+  play(): Promise<void> {
+    this.plays++;
+    if (this.paused) {
+      this.paused = false;
+      this.fire('play');
+      this.fire('playing');
+    }
+    return Promise.resolve();
+  }
+  pause(): void {
+    if (this.paused) return;
+    this.paused = true;
+    this.fire('pause');
+  }
+  fire(type: string): void {
+    this.dispatchEvent(new Event(type));
+  }
+}

@@ -94,7 +94,7 @@ try {
   writeFileSync(
     join(consumer, 'imports.ts'),
     `
-      import { SegnoPlayer, type BarChangeDetail, type ModeChangeDetail, type ResolvedScoreMode, type ScoreMode } from '@segnomusic/player';
+      import { SegnoPlayer, type BarChangeDetail, type ModeChangeDetail, type ResolvedScoreMode, type ScoreMode, type SegnoMedia } from '@segnomusic/player';
       import { buildSync, type SyncMap } from '@segnomusic/player/core';
       const loaded: typeof SegnoPlayer = (await import('@segnomusic/player')).SegnoPlayer;
       export const player: SegnoPlayer = new loaded();
@@ -102,6 +102,7 @@ try {
       export const resolved: ResolvedScoreMode = player.resolvedMode;
       export const bar: BarChangeDetail = { bar: 0, event: 0 };
       export const change: ModeChangeDetail = { mode, resolvedMode: resolved };
+      export const media: SegnoMedia | null = player.media ?? document.createElement('audio');
       export const map: SyncMap = buildSync('', []);
       // @ts-expect-error The component subpath was removed in 0.3.0.
       await import('@segnomusic/player/player');

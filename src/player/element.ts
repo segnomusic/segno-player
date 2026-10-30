@@ -7,6 +7,7 @@ import { CanvasView } from './canvas-view.js';
 import { createControls, type PlayerControls } from './controls.js';
 import { checkSyncMap, loadSync } from './load.js';
 import { type Language, languageOf, messages } from './localization.js';
+import { AUDIO_RATES, type SegnoMedia, tempoBase, tempoRange } from './media.js';
 import { automaticMode, type ModeChangeDetail, type ResolvedScoreMode, type ScoreMode, scoreMode } from './mode.js';
 import { styles } from './styles.js';
 
@@ -24,7 +25,7 @@ interface Page {
   overlay: HTMLElement;
 }
 
-/** Events of the audio element that the player re-dispatches as its own */
+/** Events of the media that the player re-dispatches as its own */
 const MEDIA_EVENTS = [
   'play',
   'pause',
@@ -62,7 +63,7 @@ const Base = (globalThis.HTMLElement ?? class {}) as typeof HTMLElement;
 /**
  * `<segno-player>`: plays a score's audio on its engraved SVG pages, with a marker on the bar being played and a
  * cursor that flows from note to note. Its playback API follows `HTMLMediaElement`.
- * @decision(DL-005) @decision(DL-014) @decision(DL-017)
+ * @decision(DL-005) @decision(DL-014) @decision(DL-017) @decision(DL-037)
  */
 export class SegnoPlayer extends Base {
   static readonly observedAttributes = [
@@ -78,9 +79,17 @@ export class SegnoPlayer extends Base {
     'follow',
     'mode',
     'lang',
+    'tempo-min',
+    'tempo-max',
+    'tempo-step',
+    'tempo-base',
   ];
 
+  /** The internal audio, from the `audio` attribute; used unless a host sets `media` */
   readonly #audio = document.createElement('audio');
+  #external: SegnoMedia | null = null;
+  #mediaListeners = new AbortController();
+  #swapping = false;
   readonly #pagesEl = document.createElement('div');
   readonly #live = document.createElement('div');
   readonly #controls: PlayerControls;
@@ -160,7 +169,10 @@ export class SegnoPlayer extends Base {
     controlsArea.setAttribute('part', 'controls-area');
     const slot = document.createElement('slot');
     slot.name = 'controls';
-    this.#controls = createControls(this);
+    this.#controls = createControls(this, () => ({
+      ...tempoRange((name) => this.getAttribute(name), !this.#external),
+      base: tempoBase(this.getAttribute('tempo-base')),
+    }));
     slot.append(this.#controls.root);
     controlsArea.append(slot);
 
@@ -173,34 +185,56 @@ export class SegnoPlayer extends Base {
     const audio = this.#audio;
     audio.preload = 'metadata';
     audio.preservesPitch = true;
-    audio.addEventListener('canplay', () => {
+    // iOS before 17.2
+    // @decision(DL-038)
+    (audio as { webkitPreservesPitch?: boolean }).webkitPreservesPitch = true;
+    this.#listen(audio);
+  }
+
+  /** The media in use: the host's, or the internal audio */
+  get #media(): SegnoMedia {
+    return this.#external ?? this.#audio;
+  }
+
+  /** Follows a media, until the next call */
+  // @decision(DL-037)
+  #listen(media: SegnoMedia): void {
+    this.#mediaListeners.abort();
+    this.#mediaListeners = new AbortController();
+    const on = (type: string, listener: () => void): void =>
+      media.addEventListener(type, listener, { signal: this.#mediaListeners.signal });
+    on('canplay', () => {
       this.#audioReady = true;
       this.#maybeCanPlay();
     });
-    audio.addEventListener('durationchange', () => this.#checkAudioLength());
-    audio.addEventListener('play', () => this.#startLoop());
-    audio.addEventListener('pause', () => {
+    on('durationchange', () => this.#checkAudioLength());
+    on('play', () => this.#startLoop());
+    on('pause', () => {
       this.#stopLoop();
       this.#update();
       this.#announce();
     });
     // A new source stops playback without a pause event
-    audio.addEventListener('emptied', () => {
+    on('emptied', () => {
       this.#stopLoop();
       this.#update();
     });
-    audio.addEventListener('seeked', () => {
+    on('seeked', () => {
       this.#update();
-      if (audio.paused) this.#announce();
+      if (media.paused && !this.#swapping) this.#announce();
     });
-    audio.addEventListener('timeupdate', () => {
-      if (audio.paused) this.#update();
+    on('timeupdate', () => {
+      if (media.paused) this.#update();
     });
     // After the player's own handlers, so its state is current when the page hears the event
-    for (const type of MEDIA_EVENTS) audio.addEventListener(type, () => this.dispatchEvent(new Event(type)));
+    for (const type of MEDIA_EVENTS) on(type, () => this.dispatchEvent(new Event(type)));
   }
 
   connectedCallback(): void {
+    this.#upgrade('sync');
+    this.#upgrade('media');
+    // @decision(DL-037)
+    if (this.#external && this.#mediaListeners.signal.aborted) this.#listen(this.#external);
     this.#observeLanguage();
     this.#apply();
     this.#resizeObserver ??= new ResizeObserver(() => this.#updateSize());
@@ -210,7 +244,9 @@ export class SegnoPlayer extends Base {
   }
 
   disconnectedCallback(): void {
-    this.#audio.pause();
+    this.#media.pause();
+    // A host's media outlives the element; the internal audio doesn't
+    if (this.#external) this.#mediaListeners.abort();
     this.#stopLoop();
     this.#resizeObserver?.disconnect();
     this.#languageObserver?.disconnect();
@@ -221,6 +257,16 @@ export class SegnoPlayer extends Base {
       this.#load?.abort();
       this.#appliedLoad = null;
     }
+  }
+
+  /** Takes a property set before the element was defined, which hides the accessor */
+  #upgrade(name: 'sync' | 'media'): void {
+    if (!Object.hasOwn(this, name)) return;
+    const own = this as unknown as Record<string, unknown>;
+    const value = own[name];
+    delete own[name];
+    if (name === 'sync') this.sync = value as SyncMap | null;
+    else this.media = value as SegnoMedia | null;
   }
 
   #updateSize(): void {
@@ -246,6 +292,10 @@ export class SegnoPlayer extends Base {
     }
     if (name === 'follow') {
       if ((previous === null) !== (value === null)) this.dispatchEvent(new Event('followchange'));
+      return;
+    }
+    if (name.startsWith('tempo-')) {
+      this.#controls.refresh();
       return;
     }
     if (!this.isConnected) return;
@@ -298,34 +348,86 @@ export class SegnoPlayer extends Base {
   // The media element API
 
   get currentTime(): number {
-    return this.#audio.currentTime;
+    return this.#media.currentTime;
   }
   set currentTime(seconds: number) {
-    this.#audio.currentTime = seconds;
+    this.#media.currentTime = seconds;
   }
   get duration(): number {
-    return this.#audio.duration;
+    return this.#media.duration;
   }
   get paused(): boolean {
-    return this.#audio.paused;
+    return this.#media.paused;
   }
   get playbackRate(): number {
-    return this.#audio.playbackRate;
+    return this.#media.playbackRate;
   }
   set playbackRate(rate: number) {
-    // The default rate survives a new audio source
-    this.#audio.defaultPlaybackRate = rate;
-    this.#audio.playbackRate = rate;
+    this.#setRate(this.#media, rate);
   }
-  /** The audio's error, as on a media element */
+  /** The media's error, as on a media element */
   get error(): MediaError | null {
-    return this.#audio.error;
+    return this.#media.error;
   }
   play(): Promise<void> {
-    return this.#audio.play();
+    return this.#media.play();
   }
   pause(): void {
-    this.#audio.pause();
+    this.#media.pause();
+  }
+
+  // @decision(DL-038)
+  #setRate(media: SegnoMedia, rate: number): void {
+    const playable = media === this.#audio ? Math.min(AUDIO_RATES.max, Math.max(AUDIO_RATES.min, rate)) : rate;
+    // The default rate survives a new audio source
+    media.defaultPlaybackRate = playable;
+    media.playbackRate = playable;
+  }
+
+  /**
+   * The host's media, playing in place of the internal audio from the `audio` attribute; null while that is in use.
+   * Setting it keeps the position, the tempo and whether it plays; null goes back to the internal audio.
+   * @decision(DL-037)
+   */
+  get media(): SegnoMedia | null {
+    return this.#external;
+  }
+  set media(media: SegnoMedia | null) {
+    const previous = this.#media;
+    const next = media ?? this.#audio;
+    this.#external = media;
+    if (next === previous) return;
+    this.#listen(next);
+    // The old media's place; one that failed may throw or have none
+    let time = 0;
+    let rate = 1;
+    let playing = false;
+    try {
+      time = previous.currentTime;
+      rate = previous.playbackRate;
+      playing = !previous.paused;
+      previous.pause();
+    } catch {}
+    this.#stopLoop();
+    this.#swapping = true;
+    try {
+      // A change to the audio attribute while the host's media played
+      if (!media && this.isConnected) this.#applyAudio();
+      this.#audioReady = Number.isFinite(next.duration);
+      this.#canplayFired = false;
+      next.currentTime = Number.isFinite(time) ? time : 0;
+      this.#setRate(next, Number.isFinite(rate) && rate > 0 ? rate : 1);
+      if (playing) {
+        Promise.resolve(next.play()).catch(() => {});
+        // A media that was already playing fires no play event
+        if (!next.paused) this.#startLoop();
+      } else next.pause();
+    } finally {
+      this.#swapping = false;
+      this.#checkAudioLength();
+      this.#controls.refresh();
+      this.#maybeCanPlay();
+    }
   }
 
   // What Segno adds
@@ -394,15 +496,20 @@ export class SegnoPlayer extends Base {
       this.#appliedPages = pages;
       this.#renderPages();
     }
-    const audio = this.getAttribute('audio');
-    if (audio !== this.#appliedAudio) {
-      this.#appliedAudio = audio;
-      this.#setAudioSource(audio);
-    }
+    this.#applyAudio();
     const load = JSON.stringify([pages, ...['positions', 'notes', 'sync'].map((a) => this.getAttribute(a))]);
     if (load !== this.#appliedLoad) {
       this.#appliedLoad = load;
       this.#queueLoad();
+    }
+  }
+
+  // @decision(DL-037)
+  #applyAudio(): void {
+    const audio = this.getAttribute('audio');
+    if (!this.#external && audio !== this.#appliedAudio) {
+      this.#appliedAudio = audio;
+      this.#setAudioSource(audio);
     }
   }
 
@@ -562,7 +669,7 @@ export class SegnoPlayer extends Base {
   }
 
   #checkAudioLength(): void {
-    const duration = this.#audio.duration;
+    const duration = this.#media.duration;
     const tooShort = this.#timeline !== null && Number.isFinite(duration) && duration * 1000 < this.#lastEventMs;
     if (tooShort && !this.#audioTooShort) {
       this.#warn(
@@ -611,10 +718,10 @@ export class SegnoPlayer extends Base {
       this.#bar = -1;
       return;
     }
-    const audio = this.#audio;
-    const rate = audio.playbackRate || 1;
-    const ms = audio.currentTime * 1000;
-    const endMs = Number.isFinite(audio.duration) ? audio.duration * 1000 : undefined;
+    const media = this.#media;
+    const rate = media.playbackRate || 1;
+    const ms = media.currentTime * 1000;
+    const endMs = Number.isFinite(media.duration) ? media.duration * 1000 : undefined;
     const barLead = numberAttribute(this.getAttribute('bar-lead'), DEFAULT_BAR_LEAD);
     const noteLead = numberAttribute(this.getAttribute('note-lead'), DEFAULT_NOTE_LEAD);
 
@@ -633,7 +740,7 @@ export class SegnoPlayer extends Base {
     if (now && (changedBar || viewChanged || projectionChanged)) this.#placeBar(now.page, now.box, changedBar);
     if (now && eventChanged) {
       this.dispatchEvent(new CustomEvent<BarChangeDetail>('barchange', { detail: { bar: now.bar, event: now.event } }));
-      if (!audio.paused && this.#resolvedMode === 'full') this.#follow();
+      if (!media.paused && this.#resolvedMode === 'full') this.#follow();
     }
 
     const cursor = this.#cursor;

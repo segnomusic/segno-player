@@ -4,9 +4,9 @@
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { page as browser } from 'vitest/browser';
-import type { SyncMap } from '../core/index.js';
+import { createTimeline, type SyncMap } from '../core/index.js';
 import { type BarChangeDetail, SegnoPlayer } from './index.js';
-import { blankPage, fixture, next, revokeAll, silentAudio } from './test-assets.js';
+import { blankPage, FakeMedia, fixture, next, revokeAll, silentAudio } from './test-assets.js';
 
 let warn: ReturnType<typeof vi.spyOn>;
 
@@ -1123,5 +1123,338 @@ describe('score modes', () => {
     expect(player.mode).toBe('reflow');
     expect(player.sync).not.toBeNull();
     expect(query(player, '.canvas-view').hidden).toBe(true);
+  });
+});
+
+const MEDIA_EVENTS = [
+  'play',
+  'pause',
+  'playing',
+  'waiting',
+  'seeking',
+  'seeked',
+  'timeupdate',
+  'ratechange',
+  'durationchange',
+  'loadedmetadata',
+  'emptied',
+  'ended',
+  'error',
+];
+const frames = async (count = 2): Promise<void> => {
+  for (let i = 0; i < count; i++) await new Promise((resolve) => requestAnimationFrame(resolve));
+};
+const barOf = (player: SegnoPlayer, event: number): number => syncOf(player).events[event]?.[0] ?? -1;
+
+/** A player with the fixture's positions on a blank page, playing through a host's media */
+async function withMedia(
+  attributes: Record<string, string | true> = {},
+  media = new FakeMedia(),
+): Promise<{ player: SegnoPlayer; media: FakeMedia }> {
+  const player = mount({ pages: blankPage(), positions: fixture.mpos, notes: fixture.spos, ...attributes });
+  const loaded = next(player, 'canplay');
+  player.media = media;
+  await loaded;
+  return { player, media };
+}
+
+describe('a host’s media', () => {
+  test('plays through it and re-dispatches its events', async () => {
+    const { player, media } = await withMedia();
+    expect(player.media).toBe(media);
+    expect(player.duration).toBe(30);
+    await player.play();
+    expect(media.plays).toBe(1);
+    expect(player.paused).toBe(false);
+    const heard: string[] = [];
+    for (const type of MEDIA_EVENTS) player.addEventListener(type, () => heard.push(type));
+    for (const type of MEDIA_EVENTS) media.fire(type);
+    expect(heard).toEqual(MEDIA_EVENTS);
+    media.error = { code: 3 } as MediaError;
+    expect(player.error).toBe(media.error);
+    player.pause();
+    expect(media.paused).toBe(true);
+  });
+
+  test('seeks it and moves the markers', async () => {
+    const { player, media } = await withMedia();
+    player.currentTime = startOf(player, 5);
+    expect(media.currentTime).toBe(startOf(player, 5));
+    expect(player.currentBar).toBe(barOf(player, 5));
+  });
+
+  test('follows its clock every frame at rates 0.2 and 2, without timeupdate', async () => {
+    const { player, media } = await withMedia();
+    // 20 ms before event 3: the bar lead (15 ms × the rate) reaches it only at the faster rate
+    for (const [rate, event] of [
+      [0.2, 2],
+      [2, 3],
+    ] as const) {
+      player.playbackRate = rate;
+      expect(media.playbackRate).toBe(rate);
+      const ms = startOf(player, 3) * 1000 - 20;
+      media.tick(ms / 1000);
+      await player.play();
+      await frames();
+      expect(player.currentBar).toBe(barOf(player, event));
+      expect(player.currentBar).toBe(createTimeline(syncOf(player)).at(ms + 15 * rate, 30_000)?.bar);
+      media.tick(startOf(player, 8) + 0.05);
+      await frames();
+      expect(player.currentBar).toBe(barOf(player, 8));
+      player.pause();
+    }
+  });
+
+  test('swapping it while playing keeps the place, the tempo and playback, and lets go of the old one', async () => {
+    const { player, media: first } = await withMedia();
+    player.playbackRate = 0.4;
+    await player.play();
+    first.tick(12);
+    const heard: string[] = [];
+    for (const type of MEDIA_EVENTS) player.addEventListener(type, () => heard.push(type));
+    const second = new FakeMedia();
+    player.media = second;
+    expect(first.paused).toBe(true);
+    expect(second.currentTime).toBe(12);
+    expect(second.playbackRate).toBe(0.4);
+    expect(second.defaultPlaybackRate).toBe(0.4);
+    expect(second.paused).toBe(false);
+    expect(player.paused).toBe(false);
+    expect(heard).toContain('play');
+    expect(heard).not.toContain('pause');
+
+    heard.length = 0;
+    for (const type of MEDIA_EVENTS) first.fire(type);
+    first.tick(0);
+    expect(heard).toEqual([]);
+    second.tick(startOf(player, 8) + 0.05);
+    await frames();
+    expect(player.currentBar).toBe(barOf(player, 8));
+  });
+
+  test('a paused swap stays paused', async () => {
+    const { player } = await withMedia();
+    const second = new FakeMedia();
+    await second.play();
+    player.media = second;
+    expect(second.paused).toBe(true);
+    expect(player.paused).toBe(true);
+  });
+
+  test('media = null goes back to the internal audio, in the same place', async () => {
+    const player = await ready();
+    const media = new FakeMedia(60);
+    player.media = media;
+    expect(player.duration).toBe(60);
+    player.currentTime = 7;
+    player.media = null;
+    expect(player.media).toBeNull();
+    expect(player.duration).toBeCloseTo(30, 1);
+    expect(player.currentTime).toBeCloseTo(7, 1);
+    await player.play();
+    expect(media.plays).toBe(0);
+    expect(player.paused).toBe(false);
+    player.pause();
+  });
+
+  test('ignores the audio attribute while it is set, and applies it once cleared', async () => {
+    const player = await ready();
+    player.media = new FakeMedia(60);
+    player.setAttribute('audio', silentAudio(10));
+    expect(player.duration).toBe(60);
+    const loaded = next(player, 'durationchange');
+    player.media = null;
+    await loaded;
+    expect(player.duration).toBeCloseTo(10, 1);
+  });
+
+  test('play() is called within the click or key press', async () => {
+    const { player, media } = await withMedia({ controls: true });
+    query<HTMLButtonElement>(player, '.play').click();
+    expect(media.plays).toBe(1);
+    player.pause();
+    query(player, '.pages').dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    expect(media.plays).toBe(2);
+  });
+
+  test('fires canplay again for a new media once it can play, and stops hearing the old one', async () => {
+    const { player, media: first } = await withMedia();
+    const second = new FakeMedia(Number.NaN);
+    player.media = second;
+    const canplay = vi.fn();
+    player.addEventListener('canplay', canplay);
+    first.fire('canplay');
+    expect(canplay).not.toHaveBeenCalled();
+    second.duration = 30;
+    second.fire('canplay');
+    expect(canplay).toHaveBeenCalledTimes(1);
+    // The old one's length no longer counts
+    first.duration = 5;
+    first.fire('durationchange');
+    expect(player.sync).not.toBeNull();
+  });
+
+  test('swapping back to the internal audio while playing plays it from the same place', async () => {
+    const player = await ready();
+    const media = new FakeMedia();
+    player.media = media;
+    await player.play();
+    media.tick(5);
+    player.media = null;
+    expect(media.paused).toBe(true);
+    expect(player.paused).toBe(false);
+    expect(player.currentTime).toBeCloseTo(5, 1);
+    player.pause();
+  });
+
+  test('a swap during playback announces nothing', async () => {
+    const { player } = await withMedia();
+    await player.play();
+    player.media = new FakeMedia();
+    expect(query(player, '.live').textContent).toBe('');
+  });
+
+  test('a media that fails is let go of without breaking the player', async () => {
+    const player = await ready({ controls: true });
+    const broken = new FakeMedia();
+    player.media = broken;
+    Object.defineProperty(broken, 'currentTime', {
+      get: () => {
+        throw new Error('The engine is gone');
+      },
+    });
+    broken.pause = () => {
+      throw new Error('The engine is gone');
+    };
+    expect(() => {
+      player.media = null;
+    }).not.toThrow();
+    expect(player.media).toBeNull();
+    expect(player.currentTime).toBe(0);
+    expect(player.playbackRate).toBe(1);
+    expect(query<HTMLButtonElement>(player, '.play').disabled).toBe(false);
+
+    // A clock that isn't a number starts the next media at the beginning
+    const lost = new FakeMedia();
+    lost.tick(Number.NaN);
+    player.media = lost;
+    player.media = null;
+    expect(player.currentTime).toBe(0);
+  });
+
+  test('a removed player stops hearing the host’s media, and hears it again when put back', async () => {
+    const { player, media } = await withMedia();
+    const heard = vi.fn();
+    player.addEventListener('timeupdate', heard);
+    player.remove();
+    media.fire('timeupdate');
+    expect(heard).not.toHaveBeenCalled();
+    document.body.append(player);
+    media.fire('timeupdate');
+    expect(heard).toHaveBeenCalledTimes(1);
+  });
+
+  test('takes a media set before the element was upgraded', async () => {
+    const player = document.createElement('segno-player');
+    const media = new FakeMedia(42);
+    // What a framework's property assignment leaves on an element that isn't defined yet
+    Object.defineProperty(player, 'media', { value: media, writable: true, configurable: true, enumerable: true });
+    document.body.append(player);
+    expect(Object.hasOwn(player, 'media')).toBe(false);
+    expect(player.media).toBe(media);
+    expect(player.duration).toBe(42);
+  });
+
+  test('checks the audio length again for each media', async () => {
+    const { player } = await withMedia({}, new FakeMedia(5));
+    expect(player.sync).toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/ends before the last bar starts/));
+    player.media = new FakeMedia(30);
+    expect(player.sync).not.toBeNull();
+  });
+});
+
+describe('the tempo range', () => {
+  const buttons = (player: SegnoPlayer): [HTMLButtonElement, HTMLButtonElement] => [
+    query<HTMLButtonElement>(player, '[part="tempo-decrease"]'),
+    query<HTMLButtonElement>(player, '[part="tempo-increase"]'),
+  ];
+
+  test('comes from the attributes, in full for a host’s media', async () => {
+    const { player } = await withMedia({ controls: true, 'tempo-min': '20', 'tempo-max': '200', 'tempo-step': '5' });
+    const [slower, faster] = buttons(player);
+    player.playbackRate = 0.25;
+    slower.click();
+    expect(player.playbackRate).toBe(0.2);
+    expect(slower.disabled).toBe(true);
+    player.playbackRate = 1.95;
+    faster.click();
+    expect(player.playbackRate).toBe(2);
+    expect(faster.disabled).toBe(true);
+    // The API isn't bound by the range
+    player.playbackRate = 0.1;
+    expect(player.playbackRate).toBe(0.1);
+  });
+
+  test('stays within 0.25–2 for the internal audio, for the API too', async () => {
+    const player = await ready({ controls: true, 'tempo-min': '20', 'tempo-max': '300' });
+    const [slower, faster] = buttons(player);
+    player.playbackRate = 0.3;
+    await next(player, 'ratechange');
+    slower.click();
+    await next(player, 'ratechange');
+    expect(player.playbackRate).toBe(0.25);
+    expect(slower.disabled).toBe(true);
+    player.playbackRate = 1.95;
+    await next(player, 'ratechange');
+    faster.click();
+    await next(player, 'ratechange');
+    expect(player.playbackRate).toBe(2);
+    expect(faster.disabled).toBe(true);
+    player.playbackRate = 0.1;
+    expect(player.playbackRate).toBe(0.25);
+    player.playbackRate = 3;
+    expect(player.playbackRate).toBe(2);
+  });
+
+  test('changes take effect at once, without changing the rate', async () => {
+    const { player } = await withMedia({ controls: true });
+    const [slower, faster] = buttons(player);
+    player.playbackRate = 1.5;
+    expect(faster.disabled).toBe(true);
+    player.setAttribute('tempo-max', '200');
+    expect(faster.disabled).toBe(false);
+    expect(player.playbackRate).toBe(1.5);
+    // Below the range: the next step brings it in
+    player.setAttribute('tempo-min', '160');
+    expect(slower.disabled).toBe(true);
+    faster.click();
+    expect(player.playbackRate).toBe(1.6);
+  });
+
+  test('fractional steps stay on their grid', async () => {
+    const { player } = await withMedia({ controls: true, 'tempo-step': '2.5' });
+    const [, faster] = buttons(player);
+    player.playbackRate = 0.5;
+    faster.click();
+    expect(player.playbackRate).toBe(0.525);
+    faster.click();
+    expect(player.playbackRate).toBe(0.55);
+  });
+
+  test('shows the tempo in quarter notes with tempo-base', async () => {
+    const { player } = await withMedia({ controls: true, 'tempo-base': '120' });
+    const bpm = query(player, '[part="tempo-bpm"]');
+    expect(bpm.hidden).toBe(false);
+    expect(bpm.textContent).toBe('♩ = 120');
+    expect(bpm.getAttribute('aria-hidden')).toBe('true');
+    player.playbackRate = 0.55;
+    expect(bpm.textContent).toBe('♩ = 66');
+    expect(query(player, '.tempo-value').textContent).toBe('55%, 66 quarter notes per minute');
+    player.setAttribute('lang', 'sv');
+    expect(query(player, '.tempo-value').textContent).toBe('55\u00a0%, 66 fjärdedelar per minut');
+    player.removeAttribute('tempo-base');
+    expect(bpm.hidden).toBe(true);
+    expect(query(player, '.tempo-value').textContent).toBe('55\u00a0%');
   });
 });
