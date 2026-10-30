@@ -27,7 +27,7 @@ function checkPositions(positions, events, size, what) {
 }
 /**
  * Checks that a value is a sync map this version of Segno can read: its version, and the shape of its entries.
- * @decision(DL-003)
+ * @decision(DL-003) @decision(DL-036)
  * @throws when it isn't
  */
 export function checkSyncMap(value) {
@@ -39,6 +39,15 @@ export function checkSyncMap(value) {
     checkPositions(map.bars, map.events, 5, 'bars');
     if (map.notes !== undefined || map.noteEvents !== undefined)
         checkPositions(map.notes, map.noteEvents, 4, 'notes');
+    if (map.pages !== undefined) {
+        if (!Array.isArray(map.pages) || !map.pages.every((p) => isNumbers(p, 2) && p.every((n) => n > 0))) {
+            throw new Error("The sync map's pages must be [w, h] arrays of 2 positive numbers");
+        }
+        const count = map.pages.length;
+        if ([...map.bars, ...(map.notes ?? [])].some(([page]) => page >= count)) {
+            throw new Error(`The sync map has positions on pages it doesn't list (${count} pages)`);
+        }
+    }
     return map;
 }
 /**
@@ -50,10 +59,10 @@ export function checkSyncMap(value) {
 export async function loadSync(inputs, signal, base = document.baseURI) {
     if (inputs.sync) {
         const text = await fetchText(inputs.sync, base, signal);
-        return { sync: checkSyncMap(JSON.parse(text)), pageSizes: [], warnings: [] };
+        return { sync: checkSyncMap(JSON.parse(text)), warnings: [] };
     }
     if (!inputs.positions)
-        return { sync: null, pageSizes: [], warnings: [] };
+        return { sync: null, warnings: [] };
     const warnings = [];
     const [mpos, spos, svgs] = await Promise.all([
         fetchText(inputs.positions, base, signal),
@@ -70,15 +79,15 @@ export async function loadSync(inputs, signal, base = document.baseURI) {
     const pageSizes = svgs.map(readViewBox);
     if (spos) {
         try {
-            return { sync: buildSync(mpos, pageSizes, { sposXml: spos }), pageSizes, warnings };
+            return { sync: buildSync(mpos, pageSizes, { sposXml: spos }), warnings };
         }
         catch (error) {
             // The bars may still fit: only the notes are dropped if they do
             const sync = buildSync(mpos, pageSizes);
             warnings.push(`No note cursor: ${String(error)}`);
-            return { sync, pageSizes, warnings };
+            return { sync, warnings };
         }
     }
-    return { sync: buildSync(mpos, pageSizes), pageSizes, warnings };
+    return { sync: buildSync(mpos, pageSizes), warnings };
 }
 //# sourceMappingURL=load.js.map

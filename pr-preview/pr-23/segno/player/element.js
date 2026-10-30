@@ -399,11 +399,11 @@ export class SegnoPlayer extends Base {
             image.alt = text.pageDescription(i + 1, count, alt);
         });
     }
+    // @decision(DL-014) @decision(DL-036)
     #setPageSizes(sizes) {
-        sizes.forEach((size, i) => {
-            const page = this.#pages[i];
-            if (page)
-                page.page.style.aspectRatio = `${size.w} / ${size.h}`;
+        this.#pages.forEach(({ page }, i) => {
+            const size = sizes[i];
+            page.style.aspectRatio = size ? `${size[0]} / ${size[1]}` : '';
         });
     }
     // Score views
@@ -479,10 +479,13 @@ export class SegnoPlayer extends Base {
                     return;
                 for (const warning of result.warnings)
                     this.#warn(warning);
-                this.#setPageSizes(result.pageSizes);
                 sync = result.sync;
             }
             const pages = this.#pages.length;
+            // @decision(DL-036)
+            if (sync?.pages && sync.pages.length !== pages) {
+                throw new Error(`The sync map was built for ${sync.pages.length} pages, but the player was given ${pages}`);
+            }
             if (sync && [...sync.bars, ...(sync.notes ?? [])].some(([page]) => page >= pages)) {
                 throw new Error(`The sync map has positions on pages the player wasn't given (${pages} pages)`);
             }
@@ -495,6 +498,7 @@ export class SegnoPlayer extends Base {
             sync = null;
             timeline = null;
         }
+        this.#setPageSizes(sync?.pages ?? []);
         this.#setTimeline(sync, timeline);
         this.#loadSettled = true;
         this.#maybeCanPlay();
