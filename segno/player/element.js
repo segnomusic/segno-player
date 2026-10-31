@@ -100,6 +100,7 @@ export class SegnoPlayer extends Base {
     #sync = null;
     #timeline = null;
     #lastEventMs = 0;
+    #shortestAudioMs = 0;
     #audioTooShort = false;
     #event = -1;
     #bar = -1;
@@ -444,6 +445,13 @@ export class SegnoPlayer extends Base {
         const ms = timeline.seekTimeForBar(bar, this.currentTime * 1000);
         if (ms < 0)
             return Promise.reject(new RangeError(`Bar ${bar} is never played`));
+        // A silent last bar, after the media's end: the end shows it
+        // @decision(DL-039)
+        const duration = this.duration;
+        if (ms > duration * 1000) {
+            this.currentTime = duration;
+            return Promise.resolve();
+        }
         this.currentTime = ms / 1000;
         return this.play();
     }
@@ -620,13 +628,15 @@ export class SegnoPlayer extends Base {
         this.#timeline = timeline;
         this.#canvasError = false;
         this.#lastEventMs = sync?.events.at(-1)?.[1] ?? 0;
+        this.#shortestAudioMs = sync?.events.at(-2)?.[1] ?? this.#lastEventMs;
         this.#event = -1;
         this.#bar = -1;
         this.#checkAudioLength();
     }
+    // @decision(DL-039)
     #checkAudioLength() {
         const duration = this.#media.duration;
-        const tooShort = this.#timeline !== null && Number.isFinite(duration) && duration * 1000 < this.#lastEventMs;
+        const tooShort = this.#timeline !== null && Number.isFinite(duration) && duration * 1000 < this.#shortestAudioMs;
         if (tooShort && !this.#audioTooShort) {
             this.#warn(`Playing without markers: the audio (${duration.toFixed(1)} s) ends before the last bar starts ` +
                 `(${(this.#lastEventMs / 1000).toFixed(1)} s). Was "Play repeats" off when it was exported?`);
@@ -669,8 +679,11 @@ export class SegnoPlayer extends Base {
         }
         const media = this.#media;
         const rate = media.playbackRate || 1;
-        const ms = media.currentTime * 1000;
         const endMs = Number.isFinite(media.duration) ? media.duration * 1000 : undefined;
+        // At the end, playback has reached the last event, even one after the media's end
+        // @decision(DL-039)
+        const atEnd = media.ended || (endMs !== undefined && media.currentTime * 1000 >= endMs);
+        const ms = atEnd ? Math.max(media.currentTime * 1000, this.#lastEventMs) : media.currentTime * 1000;
         const barLead = numberAttribute(this.getAttribute('bar-lead'), DEFAULT_BAR_LEAD);
         const noteLead = numberAttribute(this.getAttribute('note-lead'), DEFAULT_NOTE_LEAD);
         const now = timeline.at(ms + barLead * rate, endMs);
