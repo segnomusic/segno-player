@@ -196,7 +196,7 @@ The command is stricter than the player. If the files don't fit together, it sto
 ### When the files don't line up
 
 The files only belong together when they come from the same score and the same settings. These are the things to watch for:
-- **Turn "Play repeats" on** in MuseScore's preferences before exporting (it is on by default). The audio follows that setting, but the position files always unroll the repeats. If the audio ends before the last bar's start time, the two don't match, and `<segno-player>` plays without markers and warns.
+- **Turn "Play repeats" on** in MuseScore's preferences before exporting (it is on by default). The audio follows that setting, but the position files always unroll the repeats. If the audio ends before the second-to-last bar's start time, the two don't match, and `<segno-player>` plays without markers and warns. Audio that only ends before the last bar starts, as with a silent last bar, is fine: the last bar is marked when the audio ends.
 - **Leave the PNG resolution at its default**, and don't pass `-r`. The position files are in SVG units × 12 only at the default resolution. If a bar falls outside its page, the files don't belong together, and `buildSync()` throws.
 - **Export everything from the same MuseScore version, in one job.** MuseScore 4.6.2 and 4.7 write SVG pages at different scales (an A4 page is 2976 × 4209 units in one and 9921 × 14031 in the other), so pages from one version don't fit positions from another.
 - **Export the MP3 first in a job.** MuseScore 4.6 can fail the audio export when it follows an image export.

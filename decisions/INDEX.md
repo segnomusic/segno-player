@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-039 | Tolerating a silent last bar after the audio's end | accepted | segno-player |
 | DL-038 | Tempo range attributes, a tempo in quarter notes, and pitch kept on older iOS | accepted | segno-player, external-media |
 | DL-037 | Hosts can give the player its media through a media property | accepted | segno-player, external-media |
 | DL-036 | Sync maps carry their pages' sizes, so prebuilt maps keep the layout stable | accepted | cli, format |
