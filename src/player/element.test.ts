@@ -1374,6 +1374,98 @@ describe('a host’s media', () => {
   });
 });
 
+// @decision(DL-039)
+describe('a silent last bar after the audio’s end', () => {
+  // Bars 0–2 start at 0, 2 and 4 s
+  const map: SyncMap = {
+    v: 1,
+    bars: [
+      [0, 0.1, 0.1, 0.2, 0.1],
+      [0, 0.3, 0.1, 0.2, 0.1],
+      [0, 0.5, 0.1, 0.2, 0.1],
+    ],
+    events: [
+      [0, 0],
+      [1, 2000],
+      [2, 4000],
+    ],
+  };
+
+  async function silentEnd(duration: number, sync = map): Promise<{ player: SegnoPlayer; media: FakeMedia }> {
+    const media = new FakeMedia(duration);
+    const player = mount({ pages: blankPage() });
+    const loaded = next(player, 'canplay');
+    player.sync = sync;
+    player.media = media;
+    await loaded;
+    return { player, media };
+  }
+
+  test('keeps the markers, and marks the last bar when the media ends', async () => {
+    const { player, media } = await silentEnd(3.7);
+    expect(player.sync).toBe(map);
+    expect(warn).not.toHaveBeenCalled();
+    const changes: BarChangeDetail[] = [];
+    player.addEventListener('barchange', (e) => changes.push(e.detail));
+    await player.play();
+    media.tick(1);
+    await frames();
+    expect(player.currentBar).toBe(0);
+    media.tick(3);
+    await frames();
+    expect(player.currentBar).toBe(1);
+    media.tick(3.7);
+    media.ended = true;
+    media.pause();
+    expect(player.currentBar).toBe(2);
+    expect(changes.at(-1)).toEqual({ bar: 2, event: 2 });
+    expectPercent(activeMarker(player).style.left, 0.5 - 0.012);
+  });
+
+  test('marks the last bar at the end for the internal audio too', async () => {
+    const player = mount({ pages: blankPage(), audio: silentAudio(3.7) });
+    player.sync = map;
+    await next(player, 'canplay');
+    expect(player.sync).toBe(map);
+    await seek(player, 3.7);
+    expect(player.currentBar).toBe(2);
+  });
+
+  test('playBar() on it seeks to the end and resolves', async () => {
+    const { player, media } = await silentEnd(3.7);
+    await expect(player.playBar(2)).resolves.toBeUndefined();
+    expect(media.currentTime).toBe(3.7);
+    expect(media.plays).toBe(0);
+    expect(player.currentBar).toBe(2);
+    await player.playBar(1);
+    expect(media.currentTime).toBe(2);
+    expect(media.plays).toBe(1);
+  });
+
+  test('still drops the markers when the audio ends before the second-to-last bar', async () => {
+    const { player } = await silentEnd(1.9);
+    expect(player.sync).toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/ends before the last bar starts.*Play repeats/));
+  });
+
+  test('keeps the old rule for a map of one event', async () => {
+    const { player } = await silentEnd(0.5, { v: 1, bars: [[0, 0.1, 0.1, 0.2, 0.1]], events: [[0, 1000]] });
+    expect(player.sync).toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/ends before the last bar starts/));
+  });
+
+  test('checks again when the duration changes', async () => {
+    const { player, media } = await silentEnd(3.7);
+    media.duration = 1.9;
+    media.fire('durationchange');
+    expect(player.sync).toBeNull();
+    media.duration = 3.7;
+    media.fire('durationchange');
+    expect(player.sync).toBe(map);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('the tempo range', () => {
   const buttons = (player: SegnoPlayer): [HTMLButtonElement, HTMLButtonElement] => [
     query<HTMLButtonElement>(player, '[part="tempo-decrease"]'),
