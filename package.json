@@ -1,6 +1,6 @@
 {
   "name": "@segnomusic/player",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Play a score's own audio on its own engraved pages, following the bar and the notes. For MuseScore exports.",
   "license": "MIT",
   "repository": {
