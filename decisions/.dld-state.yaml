@@ -1,0 +1,10 @@
+audit:
+  last_run: 2026-11-21T20:05:35Z
+  commit_hash: 9c97921
+snapshot:
+  last_run: 2026-11-21T20:13:19Z
+  commit_hash: 464ea1f
+  decisions_included: 39
+  artifacts:
+    SNAPSHOT.md: 2026-11-21T20:13:19Z
+    OVERVIEW.md: 2026-11-21T20:13:19Z
